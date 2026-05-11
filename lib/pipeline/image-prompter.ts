@@ -38,10 +38,20 @@ blurry, low quality, watermark, text, nsfw, cartoon, anime
 - 모든 씬 빠짐없이 포함
 - 한 씬에 이미지가 여러 장이면 반드시 -A, -B, -C 순서로 구분 (예: SCENE 02-A, SCENE 02-B). "CUT 1" 형식 절대 사용 금지
 - 이미지가 1장인 씬은 그냥 SCENE 01 (알파벳 붙이지 않음)
+- **클립 수 제한**: 총 이미지 슬롯 수(A/B 포함) ≤ floor(목표초 / 5). 씬 설계서에 이미 슬롯이 제한돼 있으면 그대로 따를 것
 - 프롬프트는 사진 리얼리즘 스타일 기준 (documentary style, cinematic, photorealistic)
 - 역사 장면은 "historical", "period accurate", "dramatic lighting" 포함
 - 인물이 등장하면 ethnicity/nationality 명시 (Korean, Japanese 등)
 - 한국어로 작성 (프롬프트 자체는 영문)`;
+
+function extractTargetSeconds(topic: string): number | null {
+  const minMatch = topic.match(/(\d+)\s*분/);
+  const secMatch = topic.match(/(\d+)\s*초/);
+  if (minMatch && secMatch) return parseInt(minMatch[1]) * 60 + parseInt(secMatch[1]);
+  if (minMatch) return parseInt(minMatch[1]) * 60;
+  if (secMatch) return parseInt(secMatch[1]);
+  return null;
+}
 
 export async function runImagePrompter(
   projectId: string,
@@ -50,11 +60,17 @@ export async function runImagePrompter(
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
+  const targetSecs = extractTargetSeconds(topic);
+  const maxClips = targetSecs ? Math.floor(targetSecs / 5) : null;
+  const durationConstraint = maxClips
+    ? `\n⚠️ 목표 길이 ${targetSecs}초 → 총 이미지 슬롯(A/B 합산) 최대 ${maxClips}개. 이를 초과하지 말 것.`
+    : '';
+
   const prompt = `${SYSTEM}
 
 ---
 
-토픽: "${topic}"
+토픽: "${topic}"${durationConstraint}
 
 ## 씬 설계서 (scene-design.md)
 ${sceneDesignMd}
