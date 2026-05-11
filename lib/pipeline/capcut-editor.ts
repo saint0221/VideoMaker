@@ -25,10 +25,9 @@ function getFileDuration(filePath: string): number {
 
 interface SceneAsset {
   id: string;
-  videoFile?: string;
+  videoFiles: string[];  // scene_01.mp4 or scene_02-A.mp4, scene_02-B.mp4 ...
   imageFiles: string[];
-  duration: number;      // microseconds (video-driven)
-  videoDuration: number; // actual video clip length
+  duration: number;
 }
 
 function copyAsset(src: string, destDir: string): string | undefined {
@@ -71,34 +70,40 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const scenes: SceneAsset[] = [];
 
   for (const id of [...sceneIds].sort()) {
-    const videoSrc = path.join(videosDir, `scene_${id}.mp4`);
     const audioSrc = path.join(audioDir, `scene_${id}.mp3`);
     const srtSrc = path.join(subsDir, `scene_${id}.srt`);
 
-    const videoFile = copyAsset(videoSrc, capcutDir);
-
-    // 오디오·자막 파일도 복사 (수동 배치용)
+    // 오디오·자막 파일 복사 (수동 배치용)
     copyAsset(audioSrc, capcutDir);
     copyAsset(srtSrc, capcutDir);
 
+    // scene_02.mp4 또는 scene_02-A.mp4, scene_02-B.mp4 모두 수집
+    const videoPattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.mp4$`);
+    const sceneVideoFiles = fs.existsSync(videosDir)
+      ? fs.readdirSync(videosDir)
+          .filter((f) => videoPattern.test(f))
+          .sort()
+          .map((f) => copyAsset(path.join(videosDir, f), capcutDir))
+          .filter(Boolean) as string[]
+      : [];
+
     let sceneImageFiles: string[] = [];
-    if (!videoFile && fs.existsSync(imagesDir)) {
-      const pattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.jpg$`);
+    if (sceneVideoFiles.length === 0 && fs.existsSync(imagesDir)) {
+      const imagePattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.jpg$`);
       sceneImageFiles = fs.readdirSync(imagesDir)
-        .filter((f) => pattern.test(f))
+        .filter((f) => imagePattern.test(f))
         .sort()
         .map((f) => copyAsset(path.join(imagesDir, f), capcutDir))
         .filter(Boolean) as string[];
     }
 
-    const videoDuration = videoFile
-      ? (getFileDuration(videoFile) || 5_000_000)
-      : 4_000_000;
-
+    const totalVideoDuration = sceneVideoFiles.reduce((sum, f) => sum + (getFileDuration(f) || 5_000_000), 0);
     const audioDuration = fs.existsSync(audioSrc) ? getFileDuration(audioSrc) : 0;
-    const duration = videoFile ? videoDuration : (audioDuration > 0 ? audioDuration : 4_000_000);
+    const duration = sceneVideoFiles.length > 0
+      ? totalVideoDuration
+      : (audioDuration > 0 ? audioDuration : 4_000_000);
 
-    scenes.push({ id, videoFile, imageFiles: sceneImageFiles, duration, videoDuration });
+    scenes.push({ id, videoFiles: sceneVideoFiles, imageFiles: sceneImageFiles, duration });
   }
 
   // ---- Video track ----
@@ -108,28 +113,26 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   let offset = 0;
 
   for (const s of scenes) {
-    if (s.videoFile) {
-      const materialId = uuid();
-      videoMaterials.push({
-        id: materialId,
-        type: 'video',
-        path: s.videoFile,
-        duration: s.videoDuration,
-      });
-      let filled = 0;
-      let partNum = 1;
-      while (filled < s.duration) {
-        const remaining = s.duration - filled;
-        const clipLen = Math.min(s.videoDuration, remaining);
+    if (s.videoFiles.length > 0) {
+      let clipOffset = 0;
+      s.videoFiles.forEach((videoFile, idx) => {
+        const clipDuration = getFileDuration(videoFile) || 5_000_000;
+        const materialId = uuid();
+        videoMaterials.push({
+          id: materialId,
+          type: 'video',
+          path: videoFile,
+          duration: clipDuration,
+        });
         videoSegments.push({
-          id: `seg_${s.id}_part_${partNum++}`,
+          id: `seg_${s.id}_part_${idx + 1}`,
           material_id: materialId,
-          target_timerange: { start: offset + filled, duration: clipLen },
-          source_timerange: { start: 0, duration: clipLen },
+          target_timerange: { start: offset + clipOffset, duration: clipDuration },
+          source_timerange: { start: 0, duration: clipDuration },
           extra_material_refs: [],
         });
-        filled += clipLen;
-      }
+        clipOffset += clipDuration;
+      });
     } else if (s.imageFiles.length > 0) {
       const perImage = Math.floor(s.duration / s.imageFiles.length);
       let imageOffset = 0;

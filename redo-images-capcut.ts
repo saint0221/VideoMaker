@@ -11,7 +11,7 @@ for (const line of fs.readFileSync(path.join(process.cwd(), '.env.local'), 'utf-
 }
 
 async function main() {
-  const projectId = '심리학-징크스에-대한-설명-30초';
+  const projectId = '15초-향수-광고-제작,-20대-여성-타겟,-모델-이미지는-에스파의-카리나-같은-긴-생머리에-몸에-붙는-검은-색-드레스-착용';
   const pDir = `data/projects/${projectId}`;
 
   // Delete old images & videos
