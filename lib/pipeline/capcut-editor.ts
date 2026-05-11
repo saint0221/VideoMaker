@@ -48,6 +48,30 @@ function parseSrt(content: string): SrtEntry[] {
   return entries;
 }
 
+function makeTextContent(text: string, fontSize: number): string {
+  const style = {
+    text,
+    fill: { content: { render_type: 'color', color: [{ alpha: 1, blue: 1, green: 1, red: 1 }] } },
+    size_ratio: 1,
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    letter_spacing: 0,
+  };
+  return JSON.stringify({
+    styles: [style],
+    align: 'center',
+    base_content: text,
+    fixed_height: -1,
+    fixed_width: -1,
+    inner_padding: -1,
+    text_size: fontSize,
+    typesetting: 'horizontal',
+    vertical_align: 'center',
+  });
+}
+
 interface SceneAsset {
   id: string;
   videoFiles: string[];
@@ -185,13 +209,32 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       const audioDur = getFileDuration(s.audioFile);
       if (audioDur > 0) {
         const audioMaterialId = uuid();
-        audioMaterials.push({ id: audioMaterialId, type: 'audio', path: s.audioFile, duration: audioDur });
+        audioMaterials.push({
+          id: audioMaterialId,
+          type: 'extract_music',
+          path: s.audioFile,
+          duration: audioDur,
+          name: path.basename(s.audioFile),
+          local_material_id: audioMaterialId,
+          music_id: audioMaterialId,
+          category_name: 'local',
+          category_id: '',
+          wave_points: [],
+          loop: false,
+        });
         audioSegments.push({
           id: `audio_${s.id}`,
           material_id: audioMaterialId,
           target_timerange: { start: sceneStart, duration: audioDur },
           source_timerange: { start: 0, duration: audioDur },
           extra_material_refs: [],
+          volume: 1.0,
+          speed: 1.0,
+          loop: false,
+          reverse: false,
+          clip: { alpha: 1.0, flip: { horizontal: false, vertical: false }, rotation: 0, scale: { x: 1, y: 1 }, translation: { x: 0, y: 0 } },
+          visible: true,
+          last_nonzero_volume: 1.0,
         });
       }
     }
@@ -201,23 +244,31 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       const entries = parseSrt(fs.readFileSync(s.srtFile, 'utf-8'));
       for (const entry of entries) {
         const textMaterialId = uuid();
+        const dur = entry.end - entry.start;
         textMaterials.push({
           id: textMaterialId,
           type: 'text',
-          content: entry.text,
+          content: makeTextContent(entry.text, 40),
           font_size: 40,
-          font_color: [1.0, 1.0, 1.0, 1.0],
+          font_color: '#ffffff',
           background_alpha: 0,
           bold: false,
           italic: false,
           underline: false,
           alignment: 1,
+          name: '',
+          inner_padding: -1,
+          fixed_height: -1,
+          fixed_width: -1,
         });
         textSegments.push({
           id: uuid(),
           material_id: textMaterialId,
-          target_timerange: { start: sceneStart + entry.start, duration: entry.end - entry.start },
+          target_timerange: { start: sceneStart + entry.start, duration: dur },
+          source_timerange: { start: 0, duration: dur },
           extra_material_refs: [],
+          clip: { alpha: 1.0, flip: { horizontal: false, vertical: false }, rotation: 0, scale: { x: 1, y: 1 }, translation: { x: 0, y: 0 } },
+          visible: true,
         });
       }
     }
@@ -247,7 +298,16 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     fps: 30,
     canvas_config: { width: 1920, height: 1080, ratio: 'original' },
     tracks,
-    materials: { videos: videoMaterials, audios: audioMaterials, texts: textMaterials },
+    materials: {
+      videos: videoMaterials,
+      audios: audioMaterials,
+      texts: textMaterials,
+      beats: [], canvases: [], chromas: [], color_curves: [], effects: [],
+      handwrites: [], log_color_wheels: [], loudnesses: [], manual_deformations: [],
+      masks: [], placeholders: [], plugin_effects: [], primary_color_wheels: [],
+      speeds: [], stickers: [], tail_leaders: [], text_templates: [], transitions: [],
+      video_effects: [], video_trackings: [], vocal_beautifys: [], vocaloids: [],
+    },
   };
 
   const draftMeta = {
