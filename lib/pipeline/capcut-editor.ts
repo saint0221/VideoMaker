@@ -175,7 +175,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         const materialId = uuid();
         videoMaterials.push({ id: materialId, type: 'video', path: videoFile, duration: clipDuration });
         videoSegments.push({
-          id: `seg_${s.id}_part_${idx + 1}`,
+          id: uuid(),
           material_id: materialId,
           target_timerange: { start: sceneStart + clipOffset, duration: clipDuration },
           source_timerange: { start: 0, duration: clipDuration },
@@ -192,7 +192,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         const thisDuration = isLast ? s.duration - imageOffset : perImage;
         videoMaterials.push({ id: materialId, type: 'photo', path: imgFile, duration: thisDuration });
         videoSegments.push({
-          id: `seg_${s.id}_part_${idx + 1}`,
+          id: uuid(),
           material_id: materialId,
           target_timerange: { start: sceneStart + imageOffset, duration: thisDuration },
           source_timerange: { start: 0, duration: thisDuration },
@@ -223,7 +223,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
           loop: false,
         });
         audioSegments.push({
-          id: `audio_${s.id}`,
+          id: uuid(),
           material_id: audioMaterialId,
           target_timerange: { start: sceneStart, duration: audioDur },
           source_timerange: { start: 0, duration: audioDur },
