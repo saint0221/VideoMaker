@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { emit } from '../events';
 import { writeFileBinary, projectFile, projectDir } from '../project';
+import { uploadBufferToFal } from './utils';
 
 interface FalImageResult {
   images: Array<{ url: string; content_type: string }>;
@@ -121,35 +122,8 @@ async function uploadToFalStorage(filePath: string, apiKey: string): Promise<str
     const buffer = fs.readFileSync(filePath);
     const ext = filePath.split('.').pop()?.toLowerCase() ?? 'jpg';
     const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-    const filename = `reference.${ext}`;
-
-    const initiateRes = await fetch(
-      'https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3',
-      {
-        method: 'POST',
-        headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content_type: mimeType, file_name: filename }),
-      }
-    );
-    if (!initiateRes.ok) {
-      const err = await initiateRes.text();
-      throw new Error(`FAL initiate 실패: ${initiateRes.status} ${err}`);
-    }
-    const { upload_url, file_url } = (await initiateRes.json()) as { upload_url: string; file_url: string };
-
-    const putRes = await fetch(upload_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': mimeType },
-      body: new Uint8Array(buffer),
-    });
-    if (!putRes.ok) {
-      const err = await putRes.text();
-      throw new Error(`FAL PUT 업로드 실패: ${putRes.status} ${err}`);
-    }
-
-    return file_url;
-  } catch (err) {
-    console.warn('[image-generator] 레퍼런스 업로드 실패:', err);
+    return await uploadBufferToFal(apiKey, buffer, `reference.${ext}`, mimeType);
+  } catch {
     return null;
   }
 }

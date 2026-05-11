@@ -1,6 +1,7 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude } from './claude-runner';
+import { extractTargetSeconds } from './utils';
 
 const SYSTEM = `당신은 유튜브 영상 씬 설계 전문가입니다.
 대본(script-final.md)과 기획서(brief.md)를 바탕으로 각 씬의 시각적 연출 방향을 상세히 설계합니다.
@@ -56,14 +57,6 @@ const SYSTEM = `당신은 유튜브 영상 씬 설계 전문가입니다.
 - 한국어로 작성 (프롬프트만 영문)
 - **클립 수 제한**: Kling 영상 API 최소 클립 길이 = 5초. 총 이미지 슬롯 수(A/B 컷 포함) ≤ floor(목표초 / 5). 목표 시간을 반드시 준수할 것`;
 
-function extractTargetSeconds(topic: string): number | null {
-  const minMatch = topic.match(/(\d+)\s*분/);
-  const secMatch = topic.match(/(\d+)\s*초/);
-  if (minMatch && secMatch) return parseInt(minMatch[1]) * 60 + parseInt(secMatch[1]);
-  if (minMatch) return parseInt(minMatch[1]) * 60;
-  if (secMatch) return parseInt(secMatch[1]);
-  return null;
-}
 
 export async function runSceneDesigner(
   projectId: string,

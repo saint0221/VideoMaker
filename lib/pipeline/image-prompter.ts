@@ -1,6 +1,7 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude } from './claude-runner';
+import { extractTargetSeconds } from './utils';
 
 const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
 씬 설계서(scene-design.md)의 각 씬 이미지 프롬프트를 FAL Flux Dev API에 최적화된 형태로 정제합니다.
@@ -44,14 +45,6 @@ blurry, low quality, watermark, text, nsfw, cartoon, anime
 - 인물이 등장하면 ethnicity/nationality 명시 (Korean, Japanese 등)
 - 한국어로 작성 (프롬프트 자체는 영문)`;
 
-function extractTargetSeconds(topic: string): number | null {
-  const minMatch = topic.match(/(\d+)\s*분/);
-  const secMatch = topic.match(/(\d+)\s*초/);
-  if (minMatch && secMatch) return parseInt(minMatch[1]) * 60 + parseInt(secMatch[1]);
-  if (minMatch) return parseInt(minMatch[1]) * 60;
-  if (secMatch) return parseInt(secMatch[1]);
-  return null;
-}
 
 export async function runImagePrompter(
   projectId: string,
