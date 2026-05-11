@@ -493,6 +493,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-prompts`, { method: 'POST' });
   }
 
+  async function handleRegenerateCapcut() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-capcut`, { method: 'POST' });
+  }
+
   async function handleDelete() {
     if (!confirm('이 프로젝트를 삭제하시겠습니까? 모든 파일이 삭제됩니다.')) return;
     await fetch(`/api/projects/${id}`, { method: 'DELETE' });
@@ -823,7 +829,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>모든 파일이 준비되었습니다</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             <FileLink projectId={id} file="script-final.md" label="최종 대본" />
             <FileLink projectId={id} file="script-review.md" label="검토 리포트" />
             <FileLink projectId={id} file="brief.md" label="기획서" />
@@ -832,6 +838,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <FileLink projectId={id} file="research.md" label="리서치" />
             <FileLink projectId={id} file="strategy.md" label="전략" />
           </div>
+          <button
+            className="btn btn-outline"
+            style={{ fontSize: 12, padding: '5px 14px' }}
+            onClick={handleRegenerateCapcut}
+          >
+            ↺ CapCut 프로젝트 재생성
+          </button>
         </div>
       )}
 
