@@ -1,0 +1,895 @@
+'use client';
+
+import { useState, useEffect, useRef, use } from 'react';
+import { useRouter } from 'next/navigation';
+import { marked } from 'marked';
+import type { Project, PipelineStatus, SSEEvent, Concept } from '@/lib/types';
+
+function formatSec(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? `${m}분 ${s}초` : `${s}초`;
+}
+
+const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
+  {
+    key: 'research',
+    label: '리서치',
+    statuses: ['running:research', 'done:research'],
+  },
+  {
+    key: 'strategy',
+    label: '전략',
+    statuses: ['running:strategy', 'done:strategy', 'waiting:concept'],
+  },
+  {
+    key: 'planning',
+    label: '기획',
+    statuses: ['running:planning', 'done:planning'],
+  },
+  {
+    key: 'scripting',
+    label: '대본',
+    statuses: ['running:scripting', 'done:scripting'],
+  },
+  {
+    key: 'review',
+    label: '검토',
+    statuses: ['running:review', 'done:review', 'running:revising', 'waiting:confirm'],
+  },
+  {
+    key: 'tts',
+    label: 'TTS',
+    statuses: ['running:tts', 'done:tts'],
+  },
+  {
+    key: 'scene',
+    label: '씬설계',
+    statuses: ['running:scene', 'done:scene'],
+  },
+  {
+    key: 'prompts',
+    label: '프롬프트',
+    statuses: ['running:prompts', 'done:prompts'],
+  },
+  {
+    key: 'images',
+    label: '이미지',
+    statuses: ['waiting:reference', 'running:images', 'done:images', 'waiting:images'],
+  },
+  {
+    key: 'video',
+    label: '영상',
+    statuses: ['running:video', 'done:video'],
+  },
+  {
+    key: 'capcut',
+    label: 'CapCut',
+    statuses: ['running:capcut', 'completed'],
+  },
+];
+
+function getStageNodeClass(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isErrorStage: boolean): string {
+  if (stageIndex < currentStatusIndex) return 'stage-node stage-node-done';
+  if (stageIndex === currentStatusIndex) {
+    if (isErrorStage) return 'stage-node stage-node-error';
+    return isRunning ? 'stage-node stage-node-active' : 'stage-node stage-node-done';
+  }
+  return 'stage-node stage-node-pending';
+}
+
+function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isErrorStage: boolean): string {
+  if (stageIndex < currentStatusIndex) return '✓';
+  if (stageIndex === currentStatusIndex) {
+    if (isErrorStage) return '✗';
+    return isRunning ? '▶' : '✓';
+  }
+  return String(stageIndex + 1);
+}
+
+const WAITING_ACTIVE_STATUSES: PipelineStatus[] = ['waiting:reference', 'waiting:images'];
+
+function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; waiting: boolean } {
+  const effective = status === 'error' && lastStatus ? lastStatus : status;
+  const waiting = WAITING_ACTIVE_STATUSES.includes(status as PipelineStatus);
+  for (let i = 0; i < STAGES.length; i++) {
+    if (STAGES[i].statuses.includes(effective)) {
+      const running = status !== 'error' && (effective.startsWith('running:') || waiting);
+      return { stageIdx: i, running, waiting };
+    }
+  }
+  if (effective === 'completed') return { stageIdx: STAGES.length, running: false, waiting: false };
+  return { stageIdx: -1, running: false, waiting: false };
+}
+
+function renderMarkdown(text: string): string {
+  return marked(text) as string;
+}
+
+function FileLink({ projectId, file, label }: { projectId: string; file: string; label: string }) {
+  return (
+    <a
+      href={`/api/projects/${projectId}/files?file=${file}&download=1`}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 14px',
+        borderRadius: 6,
+        fontSize: 12,
+        color: 'var(--accent)',
+        border: '1px solid rgba(124,111,255,0.3)',
+        textDecoration: 'none',
+        transition: 'all 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,111,255,0.1)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+    >
+      ↓ {label}
+    </a>
+  );
+}
+
+function ConceptSelector({ concepts, onSelect, onRegenerate }: { concepts: Concept[]; onSelect: (i: number) => void; onRegenerate: () => void }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
+          컨셉을 선택하세요
+        </h3>
+        <button
+          className="btn btn-outline"
+          style={{ fontSize: 12, padding: '4px 12px' }}
+          disabled={submitting}
+          onClick={onRegenerate}
+        >
+          ↻ 다시 제안받기
+        </button>
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+        선택한 컨셉으로 기획서와 대본이 작성됩니다
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+        {concepts.map(c => (
+          <div
+            key={c.index}
+            className={`concept-card${selected === c.index ? ' selected' : ''}`}
+            onClick={() => setSelected(c.index)}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 6 }}>
+                  {c.name}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.6 }}>
+                  {c.angle}
+                </div>
+                {c.titles.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {c.titles.map((t, i) => (
+                      <div key={i} style={{ fontSize: 12, color: 'var(--text)', background: 'var(--surface)', padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)' }}>
+                        📹 {t}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                border: `2px solid ${selected === c.index ? 'var(--accent)' : 'var(--border)'}`,
+                background: selected === c.index ? 'var(--accent)' : 'transparent',
+                flexShrink: 0,
+                marginTop: 2,
+              }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        className="btn btn-primary"
+        disabled={selected === null || submitting}
+        onClick={() => {
+          if (selected === null) return;
+          setSubmitting(true);
+          onSelect(selected);
+        }}
+      >
+        {submitting ? '처리중…' : '이 컨셉으로 계속하기'}
+      </button>
+    </div>
+  );
+}
+
+function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
+  projectId: string;
+  score: number;
+  verdict: string;
+  onConfirm: () => void;
+  onApplyReview: () => void;
+}) {
+  const [content, setContent] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [tab, setTab] = useState<'review' | 'script'>('review');
+
+  useEffect(() => {
+    const file = tab === 'review' ? 'script-review.md' : 'script-final.md';
+    fetch(`/api/projects/${projectId}/files?file=${file}`)
+      .then(r => r.json())
+      .then(data => setContent(data.content ?? ''))
+      .catch(() => setContent(''));
+  }, [projectId, tab]);
+
+  const scoreColor = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--error)';
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          background: 'var(--surface-2)',
+          border: `2px solid ${scoreColor}`,
+          borderRadius: 12,
+          padding: '12px 20px',
+          minWidth: 80,
+        }}>
+          <span style={{ fontSize: 28, fontWeight: 800, color: scoreColor }}>{score}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100점</span>
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 4 }}>검토 완료</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{verdict}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {(['review', 'script'] as const).map(t => (
+          <button
+            key={t}
+            className={`btn ${tab === t ? 'btn-primary' : 'btn-outline'}`}
+            style={{ fontSize: 13, padding: '6px 14px' }}
+            onClick={() => setTab(t)}
+          >
+            {t === 'review' ? '검토 리포트' : '최종 대본'}
+          </button>
+        ))}
+      </div>
+
+      {content && (
+        <div
+          className="markdown"
+          style={{
+            background: 'var(--surface-2)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: 20,
+            maxHeight: 400,
+            overflowY: 'auto',
+            marginBottom: 20,
+          }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+        />
+      )}
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          className="btn btn-success"
+          disabled={confirming || applying}
+          onClick={() => { setConfirming(true); onConfirm(); }}
+        >
+          {confirming ? '처리중…' : '✓ 대본 확정'}
+        </button>
+        <button
+          className="btn btn-outline"
+          disabled={confirming || applying}
+          onClick={() => { setApplying(true); onApplyReview(); }}
+          style={{ gap: 6 }}
+        >
+          {applying ? '⏳ 수정 적용 중…' : '↻ 권장사항 적용 후 재검수'}
+        </button>
+        <FileLink projectId={projectId} file="script-final.md" label="대본 다운로드" />
+        <FileLink projectId={projectId} file="script-review.md" label="검토 리포트" />
+      </div>
+    </div>
+  );
+}
+
+export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [concepts, setConcepts] = useState<Concept[] | null>(null);
+  const [reviewData, setReviewData] = useState<{ score: number; verdict: string } | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<Array<{ sceneId: string; localPath: string }>>([]);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
+  const [confirmingImages, setConfirmingImages] = useState(false);
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [referenceUploading, setReferenceUploading] = useState(false);
+  const referenceInputRef = useRef<HTMLInputElement>(null);
+  const [sseActive, setSseActive] = useState(false);
+  const [pipelineStarted, setPipelineStarted] = useState(false);
+  const [hasSubtitles, setHasSubtitles] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [silentSec, setSilentSec] = useState(0);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const stageStartRef = useRef<number>(Date.now());
+  const lastLogTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    fetch(`/api/projects/${id}`)
+      .then(r => r.json())
+      .then((p: Project) => {
+        setProject(p);
+        if (p.concepts) setConcepts(p.concepts);
+        if (p.reviewScore !== undefined && p.reviewVerdict) {
+          setReviewData({ score: p.reviewScore, verdict: p.reviewVerdict });
+        }
+        if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
+          connectSSE();
+        }
+        fetch(`/api/projects/${id}/media?file=subtitles/scene_01.srt`)
+          .then(r => setHasSubtitles(r.ok))
+          .catch(() => {});
+        fetch(`/api/projects/${id}/media?file=reference.jpg`)
+          .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.jpg&t=${Date.now()}`); })
+          .catch(() => {});
+        fetch(`/api/projects/${id}/media?file=reference.png`)
+          .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.png&t=${Date.now()}`); })
+          .catch(() => {});
+      })
+      .catch(() => router.push('/'));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  function connectSSE() {
+    if (esRef.current) esRef.current.close();
+    setSseActive(true);
+    stageStartRef.current = Date.now();
+    lastLogTimeRef.current = Date.now();
+    setElapsedSec(0);
+    setSilentSec(0);
+    const es = new EventSource(`/api/projects/${id}/stream`);
+    esRef.current = es;
+
+    es.addEventListener('message', (e: MessageEvent) => {
+      try {
+        const event: SSEEvent = JSON.parse(e.data);
+        if (event.type === 'status') {
+          if (!event.status) return;
+          if (event.status === 'waiting:images') { setRegenerating(false); setRegeneratingPrompts(false); }
+        if (event.status === 'waiting:reference') { setRegenerating(false); setRegeneratingPrompts(false); }
+          setProject(prev => prev ? { ...prev, status: event.status } : prev);
+        } else if (event.type === 'log') {
+          lastLogTimeRef.current = Date.now();
+          setLogs(prev => [...prev, event.message]);
+        } else if (event.type === 'concepts') {
+          setConcepts(event.concepts);
+        } else if (event.type === 'review') {
+          setReviewData({ score: event.score, verdict: event.verdict });
+        } else if (event.type === 'image') {
+          setGeneratedImages(prev => [...prev, { sceneId: event.sceneId, localPath: event.localPath }]);
+        } else if (event.type === 'error') {
+          setLogs(prev => [...prev, `⚠️ ${event.message}`]);
+          setProject(prev => prev ? { ...prev, status: 'error', error: event.message } : prev);
+          es.close();
+          setSseActive(false);
+        } else if (event.type === 'done') {
+          es.close();
+          setSseActive(false);
+        }
+      } catch { /* ignore parse errors */ }
+    });
+
+    es.onerror = () => {
+      es.close();
+      setSseActive(false);
+    };
+
+    return es;
+  }
+
+  async function startPipeline() {
+    setPipelineStarted(true);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/run`, { method: 'POST' });
+  }
+
+  async function handleConceptSelect(conceptIndex: number) {
+    await fetch(`/api/projects/${id}/concept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conceptIndex }),
+    });
+    setLogs([]);
+    connectSSE();
+  }
+
+  async function handleRegenerateConcepts() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-concepts`, { method: 'POST' });
+  }
+
+  async function handleConfirm() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/confirm`, { method: 'POST' });
+  }
+
+  async function handleApplyReview() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/apply-review`, { method: 'POST' });
+  }
+
+  async function handleStartTTS() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/start-tts`, { method: 'POST' });
+  }
+
+  async function handleImagesConfirm() {
+    setConfirmingImages(true);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/confirm-images`, { method: 'POST' });
+  }
+
+  async function handleRegenerateImages() {
+    setRegenerating(true);
+    setGeneratedImages([]);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-images`, { method: 'POST' });
+  }
+
+  async function handleStartImages() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/start-images`, { method: 'POST' });
+  }
+
+  async function handleReferenceUpload(file: File) {
+    setReferenceUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`/api/projects/${id}/reference`, { method: 'POST', body: formData });
+    setReferenceUploading(false);
+    if (res.ok) {
+      const ext = file.type === 'image/png' ? 'png' : 'jpg';
+      setReferenceImageUrl(`/api/projects/${id}/media?file=reference.${ext}&t=${Date.now()}`);
+    }
+  }
+
+  async function handleReferenceDelete() {
+    await fetch(`/api/projects/${id}/reference`, { method: 'DELETE' });
+    setReferenceImageUrl(null);
+  }
+
+  async function handleRegeneratePrompts() {
+    setRegeneratingPrompts(true);
+    setRegenerating(false);
+    setGeneratedImages([]);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-prompts`, { method: 'POST' });
+  }
+
+  async function handleDelete() {
+    if (!confirm('이 프로젝트를 삭제하시겠습니까? 모든 파일이 삭제됩니다.')) return;
+    await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+    router.push('/');
+  }
+
+  useEffect(() => {
+    return () => { esRef.current?.close(); };
+  }, []);
+
+  useEffect(() => {
+    if (!sseActive) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setElapsedSec(Math.floor((now - stageStartRef.current) / 1000));
+      setSilentSec(Math.floor((now - lastLogTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sseActive]);
+
+  if (!project) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-muted)' }}>
+        불러오는 중…
+      </div>
+    );
+  }
+
+  const { stageIdx, running, waiting } = getStatusIndex(project.status, project.lastStatus);
+  const isIdle = project.status === 'idle';
+  const isWaitingConcept = project.status === 'waiting:concept';
+  const isWaitingConfirm = project.status === 'waiting:confirm';
+  const isWaitingReference = project.status === 'waiting:reference';
+  const isWaitingImages = project.status === 'waiting:images';
+  const isCompleted = project.status === 'completed';
+  const isError = project.status === 'error';
+  const isRunning = project.status?.startsWith('running:') ?? false;
+
+  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:reference', 'running:images'];
+  const isErrorInImagePhase = isError && !!project.lastStatus && IMAGE_PHASE_STATUSES.includes(project.lastStatus);
+  const showStartImages = isWaitingReference || isErrorInImagePhase;
+
+  return (
+    <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 24px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+        <button
+          onClick={() => router.push('/')}
+          style={{ all: 'unset', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          ← 목록
+        </button>
+        <span style={{ color: 'var(--border)' }}>·</span>
+        <span style={{ fontSize: 14, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 400, flex: 1 }}>
+          {project.topic}
+        </span>
+        <button
+          onClick={handleDelete}
+          style={{ all: 'unset', cursor: 'pointer', fontSize: 12, color: 'var(--text-muted)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', flexShrink: 0 }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--error)'; e.currentTarget.style.borderColor = 'var(--error)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+        >
+          삭제
+        </button>
+      </div>
+
+      {/* Stage progress */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          {STAGES.map((stage, i) => {
+            const isDone = i < stageIdx || (i === stageIdx && (!running || isCompleted));
+            const isActive = i === stageIdx && running;
+            const isErrorStage = isError && i === stageIdx;
+            return (
+              <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: i < STAGES.length - 1 ? 1 : 'none' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <div className={getStageNodeClass(i, stageIdx, running && i === stageIdx, isErrorStage)}>
+                    {getStageNodeContent(i, stageIdx, running && i === stageIdx, isErrorStage)}
+                  </div>
+                  <span style={{
+                    fontSize: 10,
+                    whiteSpace: 'nowrap',
+                    color: isErrorStage ? 'var(--error)' : isActive ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--text-muted)',
+                    fontWeight: isErrorStage || isActive ? 700 : isDone ? 500 : 400,
+                  }}>
+                    {stage.label}
+                  </span>
+                  {isActive && (
+                    <span style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.03em' }}>
+                      {waiting && i === stageIdx ? '대기중' : '진행중'}
+                    </span>
+                  )}
+                  {isErrorStage && (
+                    <span style={{ fontSize: 9, color: 'var(--error)', fontWeight: 600, letterSpacing: '0.03em' }}>
+                      실패
+                    </span>
+                  )}
+                </div>
+                {i < STAGES.length - 1 && (
+                  <div style={{
+                    flex: 1,
+                    height: 2,
+                    background: i < stageIdx ? 'var(--success)' : 'var(--border)',
+                    margin: '0 4px',
+                    marginBottom: isActive ? 28 : 22,
+                    borderRadius: 1,
+                  }} />
+                )}
+              </div>
+            );
+          })}
+          {isCompleted && (
+            <div style={{ marginLeft: 12, marginBottom: 22 }}>
+              <span style={{ fontSize: 18 }}>✅</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Start button (idle state) */}
+      {isIdle && !pipelineStarted && (
+        <div className="card" style={{ marginBottom: 24, textAlign: 'center' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 0, marginBottom: 16 }}>
+            파이프라인을 시작하면 리서치부터 전략 수립까지 자동으로 진행됩니다
+          </p>
+          <button className="btn btn-primary" onClick={startPipeline}>
+            🚀 파이프라인 시작
+          </button>
+        </div>
+      )}
+
+      {/* Running state: show log */}
+      {(isRunning || sseActive || logs.length > 0) && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+              {sseActive ? `⚡ 실행 중… (${formatSec(elapsedSec)} 경과)` : '로그'}
+            </h3>
+            {sseActive && (
+              <span style={{ fontSize: 12, color: 'var(--accent)' }}>실시간 업데이트</span>
+            )}
+          </div>
+          <div style={{
+            background: 'var(--surface-2)',
+            borderRadius: 8,
+            padding: '12px 16px',
+            maxHeight: 240,
+            overflowY: 'auto',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            lineHeight: 1.7,
+            color: 'var(--text-muted)',
+          }}>
+            {logs.length === 0 && (
+              <span style={{ color: 'var(--border)' }}>로그 대기중…</span>
+            )}
+            {logs.map((log, i) => (
+              <div key={i} style={{ color: log.startsWith('⚠️') ? 'var(--error)' : 'var(--text-muted)' }}>
+                {log}
+              </div>
+            ))}
+            {sseActive && silentSec >= 20 && (
+              <div style={{
+                color: 'var(--warning)',
+                marginTop: 8,
+                padding: '6px 10px',
+                borderRadius: 6,
+                background: 'rgba(251,191,36,0.08)',
+                border: '1px solid rgba(251,191,36,0.2)',
+              }}>
+                ⏳ Claude 처리 중… ({formatSec(silentSec)}째 응답 없음 — 정상입니다)
+              </div>
+            )}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+      )}
+
+      {/* Concept selection gate */}
+      {isWaitingConcept && concepts && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <ConceptSelector concepts={concepts} onSelect={handleConceptSelect} onRegenerate={handleRegenerateConcepts} />
+        </div>
+      )}
+
+      {/* Script review + confirm gate */}
+      {isWaitingConfirm && reviewData && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <ReviewView
+            key={`${reviewData.score}-${reviewData.verdict}`}
+            projectId={id}
+            score={reviewData.score}
+            verdict={reviewData.verdict}
+            onConfirm={handleConfirm}
+            onApplyReview={handleApplyReview}
+          />
+        </div>
+      )}
+
+      {/* Reference image — always visible before image generation starts */}
+      {!isCompleted && project.status !== 'running:images' && project.status !== 'waiting:images' && project.status !== 'running:video' && project.status !== 'done:video' && project.status !== 'running:capcut' && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <input
+            ref={referenceInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) handleReferenceUpload(file);
+              e.target.value = '';
+            }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+              레퍼런스 이미지
+            </h3>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>선택 — 이미지 생성 시 스타일 참조용</span>
+            {referenceImageUrl && !isWaitingReference && (
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
+            )}
+          </div>
+
+          {isWaitingReference && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 }}>
+              참조할 이미지를 업로드하면 해당 이미지의 스타일·색감·분위기를 반영합니다. 업로드하지 않으면 프롬프트만으로 생성합니다.
+            </p>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {referenceImageUrl ? (
+              <>
+                <div style={{ position: 'relative', display: 'inline-block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', flexShrink: 0 }}>
+                  <img
+                    src={referenceImageUrl}
+                    alt="레퍼런스"
+                    style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+                  />
+                  <button
+                    onClick={handleReferenceDelete}
+                    style={{
+                      position: 'absolute', top: 4, right: 4,
+                      background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
+                      width: 20, height: 20, cursor: 'pointer', color: '#fff', fontSize: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >✕</button>
+                </div>
+                <button className="btn btn-outline" onClick={() => referenceInputRef.current?.click()} style={{ fontSize: 12 }}>
+                  📁 변경
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-outline"
+                disabled={referenceUploading}
+                onClick={() => referenceInputRef.current?.click()}
+                style={{ fontSize: 13 }}
+              >
+                {referenceUploading ? '⏳ 업로드 중…' : '📁 레퍼런스 이미지 업로드'}
+              </button>
+            )}
+
+            {showStartImages && (
+              <button className="btn btn-primary" onClick={handleStartImages} style={{ marginLeft: referenceImageUrl ? 0 : 'auto' }}>
+                🖼 이미지 생성 시작{referenceImageUrl ? ' (레퍼런스 적용)' : ''}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Image confirmation gate */}
+      {isWaitingImages && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+            생성된 이미지 확인
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+            아래 이미지를 검토한 후 영상 생성을 진행해주세요
+          </p>
+          {generatedImages.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
+              {generatedImages.map(img => (
+                <div key={img.sceneId} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <img
+                    src={`/api/projects/${id}/media?file=${encodeURIComponent(img.localPath)}`}
+                    alt={`씬 ${img.sceneId}`}
+                    style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+                  />
+                  <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--text-muted)' }}>씬 {img.sceneId}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '20px', background: 'var(--surface-2)', borderRadius: 8, marginBottom: 20, textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>
+                이미지가 없습니다. FAL API 키가 서버에 반영되지 않았거나 프롬프트가 잘못되었을 수 있습니다.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button className="btn btn-outline" onClick={handleRegenerateImages} disabled={regenerating || regeneratingPrompts}>
+                  {regenerating ? '⏳ 이미지 생성 중…' : '🖼 이미지 다시 생성'}
+                </button>
+                <button className="btn btn-outline" onClick={handleRegeneratePrompts} disabled={regenerating || regeneratingPrompts}>
+                  {regeneratingPrompts ? '⏳ 프롬프트 재생성 중…' : '📝 씬+프롬프트 재생성'}
+                </button>
+              </div>
+            </div>
+          )}
+          <button className="btn btn-success" onClick={handleImagesConfirm} disabled={generatedImages.length === 0 || confirmingImages}>
+            {confirmingImages ? '⏳ 영상 생성 준비 중…' : '✓ 이미지 확인 완료 — 영상 생성 시작'}
+          </button>
+          {generatedImages.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+              이미지를 먼저 생성해주세요
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Completed state */}
+      {isCompleted && (
+        <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(74,222,128,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <span style={{ fontSize: 24 }}>🎉</span>
+            <div>
+              <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: 16 }}>제작 완료!</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>모든 파일이 준비되었습니다</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <FileLink projectId={id} file="script-final.md" label="최종 대본" />
+            <FileLink projectId={id} file="script-review.md" label="검토 리포트" />
+            <FileLink projectId={id} file="brief.md" label="기획서" />
+            <FileLink projectId={id} file="scene-design.md" label="씬 설계서" />
+            <FileLink projectId={id} file="image-prompts.md" label="이미지 프롬프트" />
+            <FileLink projectId={id} file="research.md" label="리서치" />
+            <FileLink projectId={id} file="strategy.md" label="전략" />
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {isError && project.error && (
+        <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(248,113,113,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <span style={{ fontWeight: 700, color: 'var(--error)', fontSize: 15 }}>오류 발생</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-outline"
+                style={{ fontSize: 12, padding: '5px 12px' }}
+                onClick={startPipeline}
+              >
+                ↺ 이어서 재시도
+              </button>
+              {!hasSubtitles && (
+                <button
+                  className="btn btn-outline"
+                  style={{ fontSize: 12, padding: '5px 12px' }}
+                  onClick={handleStartTTS}
+                >
+                  ▶ TTS부터 재시작
+                </button>
+              )}
+            </div>
+          </div>
+          <pre style={{ color: 'var(--error)', fontSize: 12, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+            {(() => {
+              try {
+                const spaceIdx = project.error!.indexOf(' ');
+                const json = spaceIdx > 0 ? JSON.parse(project.error!.slice(spaceIdx + 1)) : null;
+                return json?.error?.message ?? project.error;
+              } catch { return project.error; }
+            })()}
+          </pre>
+        </div>
+      )}
+
+      {/* File downloads (when done with stages) */}
+      {(stageIdx >= 1 || isCompleted) && !isError && (
+        <div className="card">
+          <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            파일 다운로드
+          </h3>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {stageIdx >= 0 && <FileLink projectId={id} file="research.md" label="리서치" />}
+            {stageIdx >= 1 && <FileLink projectId={id} file="strategy.md" label="전략" />}
+            {stageIdx >= 2 && <FileLink projectId={id} file="concept.md" label="선택 컨셉" />}
+            {stageIdx >= 3 && <FileLink projectId={id} file="brief.md" label="기획서" />}
+            {stageIdx >= 4 && <FileLink projectId={id} file="script-final.md" label="대본" />}
+            {stageIdx >= 4 && <FileLink projectId={id} file="script-review.md" label="검토 리포트" />}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

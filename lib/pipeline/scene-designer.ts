@@ -1,0 +1,90 @@
+import { emit } from '../events';
+import { writeFile } from '../project';
+import { runClaude } from './claude-runner';
+
+const SYSTEM = `당신은 유튜브 영상 씬 설계 전문가입니다.
+대본(script-final.md)과 기획서(brief.md)를 바탕으로 각 씬의 시각적 연출 방향을 상세히 설계합니다.
+
+각 씬마다 다음 항목을 반드시 포함하세요:
+- 씬 번호, 제목, 길이
+- 비주얼 컨셉 (구체적인 이미지 연출 방향)
+- 이미지 프롬프트 힌트 (영문, FAL Flux용)
+- 카메라/편집 스타일
+- 자막 텍스트 (나레이션 핵심 문장)
+- 사운드 방향
+
+출력 형식 (scene-design.md):
+\`\`\`
+# 씬 설계서: {토픽}
+
+## 전체 비주얼 컨셉
+{채널 전체 무드, 컬러 팔레트, 편집 스타일}
+
+---
+
+## [SCENE 01] {씬 제목}
+
+**길이**: {예상 초}초
+**나레이션 요약**: {핵심 내용 1-2줄}
+
+### 비주얼
+- 구도: {예: 클로즈업, 와이드샷 등}
+- 소재: {예: 흑백 사진, 아카이브 영상 느낌, 드라마틱 조명}
+- 분위기: {예: 긴장감, 슬픔, 웅장함}
+
+### 이미지 프롬프트
+**영문**: {Flux Dev용 영문 프롬프트, 구체적이고 시각적으로}
+**한글**: {위 프롬프트의 한글 번역}
+
+### 편집
+- 전환: {예: 페이드인, 컷, 줌}
+- 자막: "{주요 나레이션 문장}"
+
+### 사운드
+- BGM: {예: 긴장감 있는 오케스트라, 피아노 단음}
+- 효과음: {있다면}
+
+---
+
+(다음 씬들 동일한 형식으로...)
+\`\`\`
+
+규칙:
+- 모든 씬 빠짐없이 설계
+- 이미지 프롬프트는 영문과 한글 모두 작성
+- 역사적/사실적 씬은 다큐멘터리 스타일 명시
+- 한국어로 작성 (프롬프트만 영문)`;
+
+export async function runSceneDesigner(
+  projectId: string,
+  topic: string,
+  scriptMd: string,
+  briefMd: string
+): Promise<string> {
+  emit(projectId, { type: 'log', message: '[7단계] 씬 설계 중...' });
+
+  const prompt = `${SYSTEM}
+
+---
+
+토픽: "${topic}"
+
+## 대본 (script-final.md)
+${scriptMd}
+
+## 기획서 (brief.md)
+${briefMd}
+
+아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
+
+  const content = await runClaude(prompt);
+
+  if (!content) {
+    throw new Error('씬 설계자가 scene-design.md 내용을 생성하지 못했습니다.');
+  }
+
+  writeFile(projectId, 'scene-design.md', content);
+  emit(projectId, { type: 'log', message: '✅ scene-design.md 저장 완료' });
+
+  return content;
+}
