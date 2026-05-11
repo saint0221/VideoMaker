@@ -125,7 +125,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     const totalVideoDuration = sceneVideoFiles.reduce((sum, f) => sum + (getFileDuration(f) || 5_000_000), 0);
     const audioDuration = audioFile ? getFileDuration(audioFile) : 0;
     const duration = sceneVideoFiles.length > 0
-      ? totalVideoDuration
+      ? Math.max(totalVideoDuration, audioDuration)
       : (audioDuration > 0 ? audioDuration : 4_000_000);
 
     scenes.push({ id, videoFiles: sceneVideoFiles, imageFiles: sceneImageFiles, audioFile, srtFile, duration });
