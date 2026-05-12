@@ -2,6 +2,22 @@ import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude } from './claude-runner';
 
+const SCRIPT_SENTINEL_RE = /^[^\S\r\n]*===대본 시작===[^\S\r\n]*\r?\n([\s\S]*?)^[^\S\r\n]*===대본 끝===[^\S\r\n]*$/m;
+
+export function extractRevisedScript(output: string): string {
+  const sentinelMatch = output.match(SCRIPT_SENTINEL_RE);
+  if (!sentinelMatch) {
+    throw new Error('대본 마커(===대본 시작=== / ===대본 끝===)를 찾을 수 없습니다. LLM 출력 형식을 확인하세요.');
+  }
+
+  const cleanScript = sentinelMatch[1].trim();
+  if (!cleanScript) {
+    throw new Error('대본 마커 사이의 수정된 대본 내용이 비어 있습니다.');
+  }
+
+  return cleanScript;
+}
+
 export async function runScriptReviser(
   projectId: string,
   scriptMd: string,
@@ -63,11 +79,7 @@ ${reviewMd}
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');
   }
 
-  const sentinelMatch = revised.match(/===대본 시작===\r?\n([\s\S]+?)\r?\n===대본 끝===/);
-  if (!sentinelMatch) {
-    throw new Error('대본 마커(===대본 시작===)를 찾을 수 없습니다. LLM 출력 형식을 확인하세요.');
-  }
-  const cleanScript = sentinelMatch[1].trim();
+  const cleanScript = extractRevisedScript(revised);
 
   writeFile(projectId, 'script-final.md', cleanScript);
   emit(projectId, { type: 'log', message: '✅ 수정된 script-final.md 저장 완료' });

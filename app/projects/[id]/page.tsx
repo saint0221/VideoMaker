@@ -98,6 +98,7 @@ function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isR
 }
 
 const WAITING_ACTIVE_STATUSES: PipelineStatus[] = ['waiting:reference', 'waiting:images'];
+const IMAGE_RESTORE_STATUSES: PipelineStatus[] = ['done:prompts', 'waiting:reference', 'running:images'];
 
 function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; waiting: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
@@ -359,8 +360,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         fetch(`/api/projects/${id}/media?file=reference.png`)
           .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.png&t=${Date.now()}`); })
           .catch(() => {});
-        const imageStages: string[] = ['done:prompts', 'waiting:reference', 'running:images'];
-        if (p.status === 'waiting:images' || (p.status === 'error' && p.lastStatus && imageStages.includes(p.lastStatus))) {
+        if (p.status === 'waiting:images' || (p.status === 'error' && p.lastStatus && IMAGE_RESTORE_STATUSES.includes(p.lastStatus))) {
           fetch(`/api/projects/${id}/images`)
             .then(r => r.json())
             .then((data: { images: Array<{ sceneId: string; localPath: string }> }) => {
@@ -481,6 +481,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleStartImages() {
+    setGeneratedImages([]);
     setLogs([]);
     connectSSE();
     await fetch(`/api/projects/${id}/start-images`, { method: 'POST' });

@@ -345,14 +345,19 @@ export async function resumePipeline(projectId: string) {
     if (!review) {
       updateStatus(projectId, 'running:review', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:review' });
-      const reviewMd = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
-      const { score, verdict } = parseReviewScore(reviewMd);
+      let reviewMdFinal = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
+      let { score, verdict } = parseReviewScore(reviewMdFinal);
 
-      if (hasMandatoryRevisions(reviewMd)) {
+      if (hasMandatoryRevisions(reviewMdFinal)) {
         emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
         updateStatus(projectId, 'running:revising', { error: undefined });
         emit(projectId, { type: 'status', status: 'running:revising' });
-        await runScriptReviser(projectId, script!, reviewMd);
+        const revisedScript = await runScriptReviser(projectId, script!, reviewMdFinal);
+
+        updateStatus(projectId, 'running:review', { error: undefined });
+        emit(projectId, { type: 'status', status: 'running:review' });
+        reviewMdFinal = await runReviewer(projectId, topic, revisedScript, brief!, factCheck ?? undefined);
+        ({ score, verdict } = parseReviewScore(reviewMdFinal));
       }
 
       updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict, error: undefined });
