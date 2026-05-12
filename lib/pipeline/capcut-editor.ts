@@ -23,6 +23,18 @@ function getFileDuration(filePath: string): number {
   }
 }
 
+function extractLastFrame(videoPath: string, outputPath: string): boolean {
+  try {
+    execSync(
+      `ffmpeg -y -sseof -0.1 -i "${videoPath}" -frames:v 1 -q:v 2 "${outputPath}" 2>/dev/null`,
+      { encoding: 'utf-8' }
+    );
+    return fs.existsSync(outputPath);
+  } catch {
+    return false;
+  }
+}
+
 interface SrtEntry {
   start: number;  // microseconds
   end: number;    // microseconds
@@ -148,8 +160,9 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
     const totalVideoDuration = sceneVideoFiles.reduce((sum, f) => sum + (getFileDuration(f) || 5_000_000), 0);
     const audioDuration = audioFile ? getFileDuration(audioFile) : 0;
+    // 오디오가 있으면 오디오 길이를 씬 기준으로 삼음 (영상이 길면 트림, 짧으면 freeze로 채움)
     const duration = sceneVideoFiles.length > 0
-      ? Math.max(totalVideoDuration, audioDuration)
+      ? (audioDuration > 0 ? audioDuration : totalVideoDuration)
       : (audioDuration > 0 ? audioDuration : 4_000_000);
 
     scenes.push({ id, videoFiles: sceneVideoFiles, imageFiles: sceneImageFiles, audioFile, srtFile, duration });
@@ -170,9 +183,13 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     // ---- Video / image segments ----
     if (s.videoFiles.length > 0) {
       let clipOffset = 0;
-      s.videoFiles.forEach((videoFile, idx) => {
-        const clipDuration = getFileDuration(videoFile) || 5_000_000;
+      let lastVideoFile = '';
+      s.videoFiles.forEach((videoFile) => {
+        const rawDuration = getFileDuration(videoFile) || 5_000_000;
+        const clipDuration = Math.min(rawDuration, s.duration - clipOffset);
+        if (clipDuration <= 0) return;
         const materialId = uuid();
+        lastVideoFile = videoFile;
         videoMaterials.push({ id: materialId, type: 'video', path: videoFile, duration: clipDuration });
         videoSegments.push({
           id: uuid(),
@@ -183,6 +200,24 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         });
         clipOffset += clipDuration;
       });
+      // 오디오보다 영상이 짧으면 마지막 프레임을 JPEG로 추출해 photo 세그먼트로 채움
+      // (같은 파일 경로나 같은 material_id 재사용 시 CapCut이 세그먼트를 drop함)
+      if (clipOffset < s.duration && lastVideoFile) {
+        const gap = s.duration - clipOffset;
+        const freezeBase = path.basename(lastVideoFile, '.mp4');
+        const freezePath = path.join(capcutDir, `${freezeBase}_freeze.jpg`);
+        if (extractLastFrame(lastVideoFile, freezePath)) {
+          const freezeMaterialId = uuid();
+          videoMaterials.push({ id: freezeMaterialId, type: 'photo', path: freezePath, duration: gap });
+          videoSegments.push({
+            id: uuid(),
+            material_id: freezeMaterialId,
+            target_timerange: { start: sceneStart + clipOffset, duration: gap },
+            source_timerange: { start: 0, duration: gap },
+            extra_material_refs: [],
+          });
+        }
+      }
     } else if (s.imageFiles.length > 0) {
       const perImage = Math.floor(s.duration / s.imageFiles.length);
       let imageOffset = 0;
