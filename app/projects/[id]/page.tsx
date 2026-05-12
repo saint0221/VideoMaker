@@ -18,6 +18,11 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
     statuses: ['running:research', 'done:research'],
   },
   {
+    key: 'youtube',
+    label: 'YT분석',
+    statuses: ['running:youtube', 'done:youtube'],
+  },
+  {
     key: 'strategy',
     label: '전략',
     statuses: ['running:strategy', 'done:strategy', 'waiting:concept'],
@@ -31,6 +36,11 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
     key: 'scripting',
     label: '대본',
     statuses: ['running:scripting', 'done:scripting'],
+  },
+  {
+    key: 'factcheck',
+    label: '팩트체크',
+    statuses: ['running:factcheck', 'done:factcheck'],
   },
   {
     key: 'review',

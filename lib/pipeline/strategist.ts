@@ -65,8 +65,17 @@ HOOK(충격) → SETUP(공감) → RISING(긴장) → CLIMAX(반전) → RESOLUT
 - 각 컨셉의 훅 & 인트로는 실제 나레이션 텍스트로 작성 (30초 분량)
 - 한국어로 작성`;
 
-export async function runStrategist(projectId: string, topic: string, researchMd: string): Promise<string> {
+export async function runStrategist(
+  projectId: string,
+  topic: string,
+  researchMd: string,
+  youtubeAnalysisMd?: string
+): Promise<string> {
   emit(projectId, { type: 'log', message: '[2단계] 콘텐츠 전략 수립 중...' });
+
+  const youtubeSection = youtubeAnalysisMd
+    ? `\n아래는 유튜브 레퍼런스 분석입니다:\n\n${youtubeAnalysisMd}\n`
+    : '';
 
   const prompt = `${SYSTEM}
 
@@ -77,7 +86,7 @@ export async function runStrategist(projectId: string, topic: string, researchMd
 아래는 리서치 보고서입니다:
 
 ${researchMd}
-
+${youtubeSection}
 위 형식에 맞게 전략 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
   const strategyContent = await runClaude(prompt);

@@ -67,9 +67,14 @@ export async function runReviewer(
   projectId: string,
   topic: string,
   scriptMd: string,
-  briefMd: string
+  briefMd: string,
+  factCheckMd?: string
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[5단계] 대본 검수 중...' });
+
+  const factCheckSection = factCheckMd
+    ? `\n## 팩트 체크 결과 (fact-check.md)\n${factCheckMd}\n`
+    : '';
 
   const prompt = `${SYSTEM}
 
@@ -82,7 +87,7 @@ ${scriptMd}
 
 ## 기획서 (brief.md)
 ${briefMd}
-
+${factCheckSection}
 위 형식에 맞게 검수 결과만 출력해주세요. 파일 저장은 하지 마세요.`;
 
   const reviewContent = await runClaude(prompt);

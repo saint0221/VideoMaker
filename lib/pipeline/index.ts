@@ -1,7 +1,9 @@
 import { runResearcher } from './researcher';
+import { runYoutubeAnalyzer } from './youtube-analyzer';
 import { runStrategist } from './strategist';
 import { runPlanner } from './planner';
 import { runScriptwriter } from './scriptwriter';
+import { runFactChecker } from './fact-checker';
 import { runReviewer } from './reviewer';
 import { runTTS } from './tts';
 import { runSceneDesigner } from './scene-designer';
@@ -47,6 +49,17 @@ export async function runPipeline(projectId: string) {
       emit(projectId, { type: 'status', status: 'done:research' });
     }
 
+    // Stage 1.5: YouTube Analysis
+    if (readFile(projectId, 'youtube-analysis.md') === null) {
+      updateStatus(projectId, 'running:youtube');
+      emit(projectId, { type: 'status', status: 'running:youtube' });
+
+      await runYoutubeAnalyzer(projectId, topic);
+
+      updateStatus(projectId, 'done:youtube');
+      emit(projectId, { type: 'status', status: 'done:youtube' });
+    }
+
     // Stage 2: Strategy
     if (
       project.status === 'done:research' ||
@@ -56,10 +69,12 @@ export async function runPipeline(projectId: string) {
       const researchMd = readFile(projectId, 'research.md');
       if (!researchMd) throw new Error('research.md를 찾을 수 없습니다.');
 
+      const youtubeAnalysisMd = readFile(projectId, 'youtube-analysis.md') ?? undefined;
+
       updateStatus(projectId, 'running:strategy');
       emit(projectId, { type: 'status', status: 'running:strategy' });
 
-      const strategyMd = await runStrategist(projectId, topic, researchMd);
+      const strategyMd = await runStrategist(projectId, topic, researchMd, youtubeAnalysisMd);
 
       const concepts = parseConcepts(strategyMd);
       updateStatus(projectId, 'waiting:concept', { concepts });
@@ -105,11 +120,20 @@ export async function runPipelineFromPlanning(projectId: string) {
     updateStatus(projectId, 'done:scripting');
     emit(projectId, { type: 'status', status: 'done:scripting' });
 
+    // Stage 4.5: Fact Check
+    updateStatus(projectId, 'running:factcheck');
+    emit(projectId, { type: 'status', status: 'running:factcheck' });
+
+    const factCheckMd = await runFactChecker(projectId, topic, scriptMd, researchMd);
+
+    updateStatus(projectId, 'done:factcheck');
+    emit(projectId, { type: 'status', status: 'done:factcheck' });
+
     // Stage 5: Review
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });
 
-    const reviewMd = await runReviewer(projectId, topic, scriptMd, briefMd);
+    const reviewMd = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
     const { score, verdict } = parseReviewScore(reviewMd);
 
     updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
@@ -209,10 +233,12 @@ export async function resumePipeline(projectId: string) {
     const { topic } = project;
 
     const research = readFile(projectId, 'research.md');
+    const youtubeAnalysis = readFile(projectId, 'youtube-analysis.md');
     const strategy = readFile(projectId, 'strategy.md');
     const concept = readFile(projectId, 'concept.md');
     let brief = readFile(projectId, 'brief.md');
     let script = readFile(projectId, 'script-final.md');
+    let factCheck = readFile(projectId, 'fact-check.md');
     const review = readFile(projectId, 'script-review.md');
     let scene = readFile(projectId, 'scene-design.md');
     let prompts = readFile(projectId, 'image-prompts.md');
@@ -223,11 +249,30 @@ export async function resumePipeline(projectId: string) {
       return runPipeline(projectId);
     }
 
+    // No youtube analysis → run it, then strategy
+    if (!youtubeAnalysis) {
+      updateStatus(projectId, 'running:youtube', { error: undefined });
+      emit(projectId, { type: 'status', status: 'running:youtube' });
+      const youtubeAnalysisMd = await runYoutubeAnalyzer(projectId, topic);
+      updateStatus(projectId, 'done:youtube');
+      emit(projectId, { type: 'status', status: 'done:youtube' });
+
+      updateStatus(projectId, 'running:strategy', { error: undefined });
+      emit(projectId, { type: 'status', status: 'running:strategy' });
+      const strategyMd = await runStrategist(projectId, topic, research, youtubeAnalysisMd);
+      const concepts = parseConcepts(strategyMd);
+      updateStatus(projectId, 'waiting:concept', { concepts });
+      emit(projectId, { type: 'status', status: 'waiting:concept' });
+      emit(projectId, { type: 'concepts', concepts });
+      emit(projectId, { type: 'done' });
+      return;
+    }
+
     // No strategy → re-run strategy then wait for concept selection
     if (!strategy) {
       updateStatus(projectId, 'running:strategy', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:strategy' });
-      const strategyMd = await runStrategist(projectId, topic, research);
+      const strategyMd = await runStrategist(projectId, topic, research, youtubeAnalysis ?? undefined);
       const concepts = parseConcepts(strategyMd);
       updateStatus(projectId, 'waiting:concept', { concepts });
       emit(projectId, { type: 'status', status: 'waiting:concept' });
@@ -264,11 +309,20 @@ export async function resumePipeline(projectId: string) {
       emit(projectId, { type: 'status', status: 'done:scripting' });
     }
 
+    // Stage 4.5: Fact Check (skip if fact-check.md exists)
+    if (!factCheck) {
+      updateStatus(projectId, 'running:factcheck', { error: undefined });
+      emit(projectId, { type: 'status', status: 'running:factcheck' });
+      factCheck = await runFactChecker(projectId, topic, script!, research);
+      updateStatus(projectId, 'done:factcheck');
+      emit(projectId, { type: 'status', status: 'done:factcheck' });
+    }
+
     // Stage 5: Review (skip if script-review.md exists)
     if (!review) {
       updateStatus(projectId, 'running:review', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:review' });
-      const reviewMd = await runReviewer(projectId, topic, script!, brief!);
+      const reviewMd = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
       const { score, verdict } = parseReviewScore(reviewMd);
       updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict, error: undefined });
       emit(projectId, { type: 'status', status: 'waiting:confirm' });
