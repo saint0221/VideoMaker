@@ -5,6 +5,7 @@ import { runPlanner } from './planner';
 import { runScriptwriter } from './scriptwriter';
 import { runFactChecker } from './fact-checker';
 import { runReviewer } from './reviewer';
+import { runScriptReviser } from './script-reviser';
 import { runTTS } from './tts';
 import { runSceneDesigner } from './scene-designer';
 import { runImagePrompter } from './image-prompter';
@@ -21,6 +22,13 @@ import {
   parseConcepts,
   parseReviewScore,
 } from '../project';
+
+function hasMandatoryRevisions(reviewMd: string): boolean {
+  const match = reviewMd.match(/###\s*🔴\s*필수\s*수정\n([\s\S]*?)(?=###|$)/);
+  if (!match) return false;
+  const body = match[1].trim();
+  return body.length > 0 && !/^-\s*(없음|해당\s*없음)/.test(body);
+}
 
 function handleError(projectId: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -135,6 +143,14 @@ export async function runPipelineFromPlanning(projectId: string) {
 
     const reviewMd = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
     const { score, verdict } = parseReviewScore(reviewMd);
+
+    // 필수 수정 항목이 있으면 자동 적용
+    if (hasMandatoryRevisions(reviewMd)) {
+      emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
+      updateStatus(projectId, 'running:revising');
+      emit(projectId, { type: 'status', status: 'running:revising' });
+      await runScriptReviser(projectId, scriptMd, reviewMd);
+    }
 
     updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
     emit(projectId, { type: 'status', status: 'waiting:confirm' });
@@ -324,6 +340,14 @@ export async function resumePipeline(projectId: string) {
       emit(projectId, { type: 'status', status: 'running:review' });
       const reviewMd = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
       const { score, verdict } = parseReviewScore(reviewMd);
+
+      if (hasMandatoryRevisions(reviewMd)) {
+        emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
+        updateStatus(projectId, 'running:revising', { error: undefined });
+        emit(projectId, { type: 'status', status: 'running:revising' });
+        await runScriptReviser(projectId, script!, reviewMd);
+      }
+
       updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict, error: undefined });
       emit(projectId, { type: 'status', status: 'waiting:confirm' });
       emit(projectId, { type: 'review', score, verdict });
