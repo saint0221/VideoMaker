@@ -2,6 +2,20 @@ import { emit } from '../events';
 import { writeFileBinary, projectFile } from '../project';
 import { uploadBufferToFal } from './utils';
 import fs from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
+
+function getFileDuration(filePath: string): number {
+  try {
+    const out = execSync(
+      `ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}"`,
+      { encoding: 'utf-8' }
+    ).trim();
+    return Math.round(parseFloat(out) * 1_000_000);
+  } catch {
+    return 0;
+  }
+}
 
 interface KlingQueueResult {
   request_id: string;
@@ -107,42 +121,70 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     return;
   }
 
-  emit(projectId, { type: 'log', message: `[10단계] 영상 생성 (${imageFiles.length}개 씬)` });
-
+  const audioDir = projectFile(projectId, 'audio');
   const videosDir = projectFile(projectId, 'videos');
 
-  for (const imageFile of imageFiles) {
-    const sceneId = imageFile.replace('scene_', '').replace('.jpg', '');
+  // 씬 번호별로 이미지 그룹화
+  const sceneGroups = new Map<string, string[]>();
+  for (const f of imageFiles) {
+    const m = f.match(/^scene_(\d+)/);
+    if (!m) continue;
+    const num = m[1];
+    if (!sceneGroups.has(num)) sceneGroups.set(num, []);
+    sceneGroups.get(num)!.push(f);
+  }
 
-    const existingVideo = `${videosDir}/scene_${sceneId}.mp4`;
-    if (fs.existsSync(existingVideo)) {
-      emit(projectId, { type: 'log', message: `  ⏭️ 씬 ${sceneId} 이미 완료 — 건너뜀` });
-      continue;
+  // 전체 클립 수 계산 (로그용)
+  let totalClips = 0;
+  for (const [num, imgs] of sceneGroups) {
+    const audioPath = path.join(audioDir, `scene_${num}.mp3`);
+    const audioDur = fs.existsSync(audioPath) ? getFileDuration(audioPath) : 0;
+    const needed = audioDur > 0 ? Math.ceil(audioDur / 5_000_000) : imgs.length;
+    totalClips += Math.max(needed, imgs.length);
+  }
+
+  emit(projectId, { type: 'log', message: `[10단계] 영상 생성 (${totalClips}개 클립)` });
+
+  for (const [sceneNum, sceneImages] of [...sceneGroups.entries()].sort()) {
+    const audioPath = path.join(audioDir, `scene_${sceneNum}.mp3`);
+    const audioDur = fs.existsSync(audioPath) ? getFileDuration(audioPath) : 0;
+    // 오디오 길이 기준으로 필요한 클립 수 계산 (5초 클립 단위)
+    const neededClips = audioDur > 0 ? Math.ceil(audioDur / 5_000_000) : sceneImages.length;
+    const totalSlots = Math.max(neededClips, sceneImages.length);
+
+    for (let i = 0; i < totalSlots; i++) {
+      const suffix = String.fromCharCode(65 + i); // A, B, C…
+      const videoFileName = `scene_${sceneNum}-${suffix}.mp4`;
+      const existingVideo = path.join(videosDir, videoFileName);
+
+      if (fs.existsSync(existingVideo)) {
+        emit(projectId, { type: 'log', message: `  ⏭️ 씬 ${sceneNum}-${suffix} 이미 완료 — 건너뜀` });
+        continue;
+      }
+
+      // 이미지가 부족하면 마지막 이미지 재사용
+      const imageFile = i < sceneImages.length ? sceneImages[i] : sceneImages[sceneImages.length - 1];
+      emit(projectId, { type: 'log', message: `  씬 ${sceneNum}-${suffix} 영상 생성 중… (약 1~2분 소요)` });
+
+      const imageBuffer = fs.readFileSync(path.join(imagesDir, imageFile));
+      const imageUrl = await uploadBufferToFal(apiKey, imageBuffer, imageFile, 'image/jpeg');
+
+      const onProgress = (msg: string) => emit(projectId, { type: 'log', message: msg });
+      const videoUrl = await generateVideo(
+        apiKey,
+        imageUrl,
+        'cinematic slow motion, dramatic atmosphere, documentary style',
+        onProgress
+      );
+
+      const videoRes = await fetch(videoUrl);
+      if (!videoRes.ok) throw new Error(`씬 ${sceneNum}-${suffix} 영상 다운로드 실패`);
+
+      const buf = Buffer.from(await videoRes.arrayBuffer());
+      writeFileBinary(projectId, `videos/${videoFileName}`, buf);
+
+      emit(projectId, { type: 'log', message: `  ✅ 씬 ${sceneNum}-${suffix} 완료` });
     }
-
-    emit(projectId, { type: 'log', message: `  씬 ${sceneId} 영상 생성 중… (약 1~2분 소요)` });
-
-    const imagePath = `${imagesDir}/${imageFile}`;
-    const imageBuffer = fs.readFileSync(imagePath);
-
-    const imageUrl = await uploadBufferToFal(apiKey, imageBuffer, imageFile, 'image/jpeg');
-
-    const onProgress = (msg: string) => emit(projectId, { type: 'log', message: msg });
-    const videoUrl = await generateVideo(
-      apiKey,
-      imageUrl,
-      'cinematic slow motion, dramatic atmosphere, documentary style',
-      onProgress
-    );
-
-    // Download video
-    const videoRes = await fetch(videoUrl);
-    if (!videoRes.ok) throw new Error(`씬 ${sceneId} 영상 다운로드 실패`);
-
-    const buf = Buffer.from(await videoRes.arrayBuffer());
-    writeFileBinary(projectId, `videos/scene_${sceneId}.mp4`, buf);
-
-    emit(projectId, { type: 'log', message: `  ✅ 씬 ${sceneId} 영상 완료` });
   }
 
   emit(projectId, { type: 'log', message: '✅ 영상 생성 완료' });
