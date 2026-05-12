@@ -23,14 +23,16 @@ import {
   parseReviewScore,
 } from '../project';
 
-function hasMandatoryRevisions(reviewMd: string): boolean {
-  const match = reviewMd.match(/###\s*🔴\s*필수\s*수정\n([\s\S]*?)(?=###|$)/);
+export function hasMandatoryRevisions(reviewMd: string): boolean {
+  const match = reviewMd.match(/###\s*🔴\s*필수\s*수정\r?\n([\s\S]*?)(?=###|$)/);
   if (!match) return false;
   const body = match[1].trim();
-  return body.length > 0 && !/^-\s*(없음|해당\s*없음)/.test(body);
+  if (body.length === 0) return false;
+  const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  return lines.length > 0 && !lines.every(l => /^-?\s*(없음|해당\s*없음)\s*$/.test(l));
 }
 
-function handleError(projectId: string, err: unknown): void {
+export function handleError(projectId: string, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
   updateStatus(projectId, 'error', { error: message });
   emit(projectId, { type: 'error', message });
@@ -72,7 +74,7 @@ export async function runPipeline(projectId: string) {
     if (
       project.status === 'done:research' ||
       project.status === 'running:strategy' ||
-      readFile(projectId, 'research.md') !== null
+      readFile(projectId, 'strategy.md') === null
     ) {
       const researchMd = readFile(projectId, 'research.md');
       if (!researchMd) throw new Error('research.md를 찾을 수 없습니다.');

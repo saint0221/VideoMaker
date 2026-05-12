@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, readFile } from '@/lib/project';
-import { runPostScript } from '@/lib/pipeline';
+import { runPostScript, handleError } from '@/lib/pipeline';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'script-final.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  runPostScript(id).catch(console.error);
+  runPostScript(id).catch((err) => handleError(id, err));
 
   return NextResponse.json({ started: true });
 }

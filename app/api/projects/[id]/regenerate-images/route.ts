@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject, readFile } from '@/lib/project';
+import { loadProject, readFile, updateStatus } from '@/lib/project';
 import { findReferenceImage } from '@/lib/pipeline/image-generator';
 import { runImagesBackground } from '@/lib/pipeline';
 
@@ -19,6 +19,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!promptsMd) {
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
+
+  updateStatus(id, 'running:images');
 
   const referenceImagePath = findReferenceImage(id) ?? undefined;
   runImagesBackground(id, promptsMd, referenceImagePath);

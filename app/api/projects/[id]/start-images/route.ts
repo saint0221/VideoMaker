@@ -11,8 +11,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  const isErrorState = project.status === 'error';
-  if (project.status !== 'waiting:reference' && !isErrorState) {
+  const imageStageLastStatuses = ['done:prompts', 'waiting:reference', 'running:images'];
+  const isImageStageError =
+    project.status === 'error' &&
+    project.lastStatus != null &&
+    imageStageLastStatuses.includes(project.lastStatus);
+
+  if (project.status !== 'waiting:reference' && !isImageStageError) {
     return NextResponse.json({ error: '레퍼런스 대기 상태가 아닙니다.' }, { status: 409 });
   }
 
@@ -21,7 +26,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  if (isErrorState) {
+  if (isImageStageError) {
     updateStatus(id, 'waiting:reference', { error: undefined });
   }
 

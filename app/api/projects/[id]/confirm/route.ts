@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject } from '@/lib/project';
-import { runPostScript } from '@/lib/pipeline';
+import { runPostScript, handleError } from '@/lib/pipeline';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +14,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: '확인 단계가 아닙니다.' }, { status: 409 });
   }
 
-  runPostScript(id).catch(console.error);
+  runPostScript(id).catch((err) => handleError(id, err));
 
   return NextResponse.json({ confirmed: true });
 }

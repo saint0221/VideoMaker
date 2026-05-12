@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject } from '@/lib/project';
-import { runPipeline, resumePipeline } from '@/lib/pipeline';
+import { runPipeline, resumePipeline, handleError } from '@/lib/pipeline';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,9 +14,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (project.status === 'error') {
-    resumePipeline(id).catch(console.error);
+    resumePipeline(id).catch((err) => handleError(id, err));
   } else {
-    runPipeline(id).catch(console.error);
+    runPipeline(id).catch((err) => handleError(id, err));
   }
 
   return NextResponse.json({ started: true });

@@ -4,6 +4,7 @@ import { runScriptReviser } from '@/lib/pipeline/script-reviser';
 import { runReviewer } from '@/lib/pipeline/reviewer';
 import { parseReviewScore } from '@/lib/project';
 import { emit } from '@/lib/events';
+import { hasMandatoryRevisions } from '@/lib/pipeline';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +21,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const scriptMd = readFile(id, 'script-final.md');
   const reviewMd = readFile(id, 'script-review.md');
   const briefMd = readFile(id, 'brief.md');
+  const factCheckMd = readFile(id, 'fact-check.md') ?? undefined;
 
   if (!scriptMd || !reviewMd || !briefMd) {
     return NextResponse.json({ error: '필요한 파일을 찾을 수 없습니다.' }, { status: 400 });
@@ -34,8 +36,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     updateStatus(id, 'running:review');
     emit(id, { type: 'status', status: 'running:review' });
 
-    const newReviewMd = await runReviewer(id, project!.topic, revisedScript, briefMd!);
+    const newReviewMd = await runReviewer(id, project!.topic, revisedScript, briefMd!, factCheckMd);
     const { score, verdict } = parseReviewScore(newReviewMd);
+
+    // 재검토 후에도 필수 수정 항목이 있으면 한 번 더 수정 (무한 루프 방지를 위해 1회만)
+    if (hasMandatoryRevisions(newReviewMd)) {
+      emit(id, { type: 'log', message: '🔴 재검토 후 필수 수정 항목 감지 — 최종 수정 적용 중...' });
+      updateStatus(id, 'running:revising');
+      emit(id, { type: 'status', status: 'running:revising' });
+      await runScriptReviser(id, revisedScript, newReviewMd);
+    }
 
     updateStatus(id, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
     emit(id, { type: 'status', status: 'waiting:confirm' });

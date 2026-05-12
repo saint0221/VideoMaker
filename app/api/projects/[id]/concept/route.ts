@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject } from '@/lib/project';
-import { saveConcept, runPipelineFromPlanning } from '@/lib/pipeline';
+import { saveConcept, runPipelineFromPlanning, handleError } from '@/lib/pipeline';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   await saveConcept(id, conceptIndex);
 
-  runPipelineFromPlanning(id).catch(console.error);
+  runPipelineFromPlanning(id).catch((err) => handleError(id, err));
 
   return NextResponse.json({ started: true });
 }
