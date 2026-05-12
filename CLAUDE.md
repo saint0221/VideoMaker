@@ -16,19 +16,23 @@
 | 순서 | 상태 키 | 설명 | 출력 파일 |
 |------|---------|------|-----------|
 | 1 | `running:research` → `done:research` | 웹 리서치 | `research.md` |
+| 1.5 | `running:youtube` → `done:youtube` | 유튜브 채널 분석 | `youtube-analysis.md` |
 | 2 | `running:strategy` → `waiting:concept` | 컨셉 전략 (사용자 선택 필요) | `strategy.md` |
 | 3 | `running:planning` → `done:planning` | 기획서 작성 | `brief.md` |
 | 4 | `running:scripting` → `done:scripting` | 대본 작성 | `script-final.md` |
-| 5 | `running:review` → `waiting:confirm` | 대본 검토 (사용자 승인 필요) | `script-review.md` |
+| 4.5 | `running:factcheck` → `done:factcheck` | 팩트 체크 | `fact-check.md` |
+| 5 | `running:review` → `done:review` | 대본 검토 | `script-review.md` |
+| 5a | `running:revising` → (재검토) | 자동 수정 (85점 미만 또는 필수 수정 시) | `script-final.md` (갱신) |
+| 5b | `waiting:confirm` | 대본 최종 승인 대기 (85점 미만 재수정 후에만) | — |
 | 6 | `running:tts` → `done:tts` | TTS 음성 생성 | `audio/`, `subtitles/` |
 | 7 | `running:scene` → `done:scene` | 씬 설계 | `scene-design.md` |
 | 8 | `running:prompts` → `done:prompts` | 이미지 프롬프트 생성 | `image-prompts.md` |
 | 9a | `done:prompts` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
-| 9b | `running:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
-| 10 | `running:video` → `done:video` | 영상 클립 생성 | `video/` |
+| 9b | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
+| 10 | `running:video` → `done:video` | 영상 클립 생성 | `videos/` |
 | 11 | `running:capcut` → `completed` | 캡컷 프로젝트 생성 | `capcut-project/` |
 
-**사용자 개입 포인트**: `waiting:concept` (컨셉 선택), `waiting:confirm` (대본 승인), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
+**사용자 개입 포인트**: `waiting:concept` (컨셉 선택), `waiting:confirm` (85점 미만 재수정 후 대본 최종 승인 — 85점 이상·필수 수정 없으면 자동 확정), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
 
 ## 핵심 파일 위치
 
@@ -64,7 +68,9 @@ app/
         ├── regenerate-prompts/route.ts # POST — 프롬프트 재생성
         ├── regenerate-concepts/route.ts # POST — 컨셉 재생성 (waiting:concept 상태에서만)
         ├── restore-status/route.ts  # POST — 상태 복구
-        ├── files/route.ts           # GET — 프로젝트 산출물 파일 목록
+        ├── images/route.ts          # GET — 생성된 이미지 목록 (sceneId, localPath)
+        ├── regenerate-capcut/route.ts # POST — 캡컷 프로젝트 재생성
+        ├── files/route.ts           # GET — ?file= 파라미터로 허용된 특정 파일 내용 반환
         └── media/route.ts           # GET — 미디어 파일 서빙
 ```
 
@@ -78,11 +84,13 @@ data/projects/{project-id}/
 ├── brief.md / concept.md
 ├── script-final.md
 ├── script-review.md
+├── fact-check.md
+├── youtube-analysis.md
 ├── scene-design.md
 ├── image-prompts.md
 ├── audio/              # TTS 오디오
 ├── images/             # 생성된 이미지
-├── video/              # 생성된 영상 클립
+├── videos/             # 생성된 영상 클립
 └── capcut-project/     # 캡컷 프로젝트 JSON
 ```
 
@@ -97,11 +105,12 @@ data/projects/{project-id}/
 ## 환경 변수
 
 ```env
-ANTHROPIC_API_KEY=       # 필수 — Claude 모델 호출
 ELEVENLABS_API_KEY=      # TTS 단계 (없으면 건너뜀)
 FAL_API_KEY=             # 이미지/영상 생성 (없으면 건너뜀)
 KLING_API_KEY=           # 영상 생성 폴백
 ```
+
+> **주의**: `ANTHROPIC_API_KEY`는 **불필요**. AI 호출은 `claude CLI`를 자식 프로세스로 spawn하며 CLI 자체 인증을 사용 (`lib/pipeline/claude-runner.ts` 참조).
 
 ## UI 디자인 시스템
 

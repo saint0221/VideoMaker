@@ -146,9 +146,12 @@ export async function runPipelineFromPlanning(projectId: string) {
     let reviewMdFinal = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
     let { score, verdict } = parseReviewScore(reviewMdFinal);
 
-    // 필수 수정 항목이 있으면 자동 적용 후 재검토
-    if (hasMandatoryRevisions(reviewMdFinal)) {
-      emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
+    // 85점 미만이거나 필수 수정 항목이 있으면 자동 수정 후 재검토
+    if (score < 85 || hasMandatoryRevisions(reviewMdFinal)) {
+      const reason = hasMandatoryRevisions(reviewMdFinal)
+        ? '🔴 필수 수정 항목 감지'
+        : `📝 점수 ${score}점 (85점 미만)`;
+      emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
       updateStatus(projectId, 'running:revising');
       emit(projectId, { type: 'status', status: 'running:revising' });
       const revisedScript = await runScriptReviser(projectId, scriptMd, reviewMdFinal);
@@ -160,9 +163,17 @@ export async function runPipelineFromPlanning(projectId: string) {
     }
 
     updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
-    emit(projectId, { type: 'status', status: 'waiting:confirm' });
     emit(projectId, { type: 'review', score, verdict });
-    emit(projectId, { type: 'done' });
+
+    // 85점 이상이고 치명적 수정사항 없으면 자동 확정
+    if (score >= 85 && !hasMandatoryRevisions(reviewMdFinal)) {
+      emit(projectId, { type: 'log', message: `✅ ${score}점 — 자동 확정, 다음 단계 진행` });
+      emit(projectId, { type: 'status', status: 'waiting:confirm' });
+      await runPostScript(projectId);
+    } else {
+      emit(projectId, { type: 'status', status: 'waiting:confirm' });
+      emit(projectId, { type: 'done' });
+    }
   } catch (err) {
     handleError(projectId, err);
   }
@@ -348,8 +359,11 @@ export async function resumePipeline(projectId: string) {
       let reviewMdFinal = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
       let { score, verdict } = parseReviewScore(reviewMdFinal);
 
-      if (hasMandatoryRevisions(reviewMdFinal)) {
-        emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
+      if (score < 85 || hasMandatoryRevisions(reviewMdFinal)) {
+        const reason = hasMandatoryRevisions(reviewMdFinal)
+          ? '🔴 필수 수정 항목 감지'
+          : `📝 점수 ${score}점 (85점 미만)`;
+        emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
         updateStatus(projectId, 'running:revising', { error: undefined });
         emit(projectId, { type: 'status', status: 'running:revising' });
         const revisedScript = await runScriptReviser(projectId, script!, reviewMdFinal);
@@ -361,21 +375,35 @@ export async function resumePipeline(projectId: string) {
       }
 
       updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict, error: undefined });
-      emit(projectId, { type: 'status', status: 'waiting:confirm' });
       emit(projectId, { type: 'review', score, verdict });
-      emit(projectId, { type: 'done' });
+
+      if (score >= 85 && !hasMandatoryRevisions(reviewMdFinal)) {
+        emit(projectId, { type: 'log', message: `✅ ${score}점 — 자동 확정, 다음 단계 진행` });
+        emit(projectId, { type: 'status', status: 'waiting:confirm' });
+        await runPostScript(projectId);
+      } else {
+        emit(projectId, { type: 'status', status: 'waiting:confirm' });
+        emit(projectId, { type: 'done' });
+      }
       return;
     }
 
-    // Review done but no scene-design → restore confirm gate so user re-triggers post-script
+    // Review done but no scene-design → auto-confirm if eligible, otherwise restore confirm gate
     if (!scene) {
       const { score, verdict } = parseReviewScore(review);
       const resolvedScore = project.reviewScore ?? score;
       const resolvedVerdict = project.reviewVerdict ?? verdict;
       updateStatus(projectId, 'waiting:confirm', { reviewScore: resolvedScore, reviewVerdict: resolvedVerdict, error: undefined });
-      emit(projectId, { type: 'status', status: 'waiting:confirm' });
       emit(projectId, { type: 'review', score: resolvedScore, verdict: resolvedVerdict });
-      emit(projectId, { type: 'done' });
+
+      if (resolvedScore >= 85 && !hasMandatoryRevisions(review)) {
+        emit(projectId, { type: 'log', message: `✅ ${resolvedScore}점 — 자동 확정, 다음 단계 진행` });
+        emit(projectId, { type: 'status', status: 'waiting:confirm' });
+        await runPostScript(projectId);
+      } else {
+        emit(projectId, { type: 'status', status: 'waiting:confirm' });
+        emit(projectId, { type: 'done' });
+      }
       return;
     }
 
