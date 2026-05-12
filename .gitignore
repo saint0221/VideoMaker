@@ -43,3 +43,6 @@ next-env.d.ts
 
 # project data
 /data
+
+# claude code local settings
+.claude/
