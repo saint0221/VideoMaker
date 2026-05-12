@@ -20,7 +20,7 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
   {
     key: 'youtube',
     label: 'YT분석',
-    statuses: ['running:youtube', 'done:youtube'],
+    statuses: ['waiting:youtube-urls', 'running:youtube', 'done:youtube'],
   },
   {
     key: 'strategy',
@@ -97,7 +97,7 @@ function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isR
   return String(stageIndex + 1);
 }
 
-const WAITING_ACTIVE_STATUSES: PipelineStatus[] = ['waiting:reference', 'waiting:images'];
+const WAITING_ACTIVE_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:reference', 'waiting:images'];
 
 function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; waiting: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
@@ -322,6 +322,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
   const [reviewData, setReviewData] = useState<{ score: number; verdict: string } | null>(null);
   const [generatedImages, setGeneratedImages] = useState<Array<{ sceneId: string; localPath: string }>>([]);
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
+  const [youtubeUrlSubmitting, setYoutubeUrlSubmitting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
@@ -512,6 +514,17 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-prompts`, { method: 'POST' });
   }
 
+  async function handleYoutubeUrls(urls: string[]) {
+    setYoutubeUrlSubmitting(true);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/youtube-urls`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls }),
+    });
+  }
+
   async function handleRegenerateCapcut() {
     setLogs([]);
     connectSSE();
@@ -548,6 +561,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   const { stageIdx, running, waiting } = getStatusIndex(project.status, project.lastStatus);
   const isIdle = project.status === 'idle';
+  const isWaitingYoutubeUrls = project.status === 'waiting:youtube-urls';
   const isWaitingConcept = project.status === 'waiting:concept';
   const isWaitingConfirm = project.status === 'waiting:confirm';
   const isWaitingReference = project.status === 'waiting:reference';
@@ -692,6 +706,59 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </div>
             )}
             <div ref={logsEndRef} />
+          </div>
+        </div>
+      )}
+
+      {/* YouTube URL input gate */}
+      {isWaitingYoutubeUrls && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px', color: 'var(--text)' }}>
+            유튜브 레퍼런스 URL
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 }}>
+            분석할 유튜브 영상 URL을 한 줄에 하나씩 입력하세요. 해당 영상의 제목·설명을 분석에 반영합니다.<br />
+            없으면 건너뛰기를 누르세요.
+          </p>
+          <textarea
+            value={youtubeUrlInput}
+            onChange={e => setYoutubeUrlInput(e.target.value)}
+            placeholder={'https://www.youtube.com/watch?v=...\nhttps://www.youtube.com/watch?v=...'}
+            disabled={youtubeUrlSubmitting}
+            rows={4}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              color: 'var(--text)',
+              fontSize: 13,
+              padding: '10px 14px',
+              resize: 'vertical',
+              fontFamily: 'monospace',
+              marginBottom: 14,
+              outline: 'none',
+            }}
+          />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              className="btn btn-primary"
+              disabled={youtubeUrlSubmitting || !youtubeUrlInput.trim()}
+              onClick={() => {
+                const urls = youtubeUrlInput.split('\n').map(u => u.trim()).filter(Boolean);
+                handleYoutubeUrls(urls);
+              }}
+            >
+              {youtubeUrlSubmitting ? '처리중…' : '🔍 URL 분석 후 계속'}
+            </button>
+            <button
+              className="btn btn-outline"
+              disabled={youtubeUrlSubmitting}
+              onClick={() => handleYoutubeUrls([])}
+            >
+              건너뛰기
+            </button>
           </div>
         </div>
       )}

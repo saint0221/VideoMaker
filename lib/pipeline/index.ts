@@ -59,40 +59,50 @@ export async function runPipeline(projectId: string) {
       emit(projectId, { type: 'status', status: 'done:research' });
     }
 
-    // Stage 1.5: YouTube Analysis
+    // Stage 1.5: YouTube URL Gate
     if (readFile(projectId, 'youtube-analysis.md') === null) {
-      updateStatus(projectId, 'running:youtube');
-      emit(projectId, { type: 'status', status: 'running:youtube' });
-
-      await runYoutubeAnalyzer(projectId, topic);
-
-      updateStatus(projectId, 'done:youtube');
-      emit(projectId, { type: 'status', status: 'done:youtube' });
+      updateStatus(projectId, 'waiting:youtube-urls');
+      emit(projectId, { type: 'status', status: 'waiting:youtube-urls' });
+      emit(projectId, { type: 'done' });
+      return; // Wait for user to optionally provide YouTube URLs
     }
+  } catch (err) {
+    handleError(projectId, err);
+  }
+}
+
+export async function runPipelineFromYoutube(projectId: string) {
+  const project = loadProject(projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+
+  try {
+    const { topic, youtubeUrls } = project;
+
+    // Stage 1.5: YouTube Analysis
+    updateStatus(projectId, 'running:youtube');
+    emit(projectId, { type: 'status', status: 'running:youtube' });
+
+    await runYoutubeAnalyzer(projectId, topic, youtubeUrls);
+
+    updateStatus(projectId, 'done:youtube');
+    emit(projectId, { type: 'status', status: 'done:youtube' });
 
     // Stage 2: Strategy
-    if (
-      project.status === 'done:research' ||
-      project.status === 'running:strategy' ||
-      readFile(projectId, 'strategy.md') === null
-    ) {
-      const researchMd = readFile(projectId, 'research.md');
-      if (!researchMd) throw new Error('research.md를 찾을 수 없습니다.');
+    const researchMd = readFile(projectId, 'research.md');
+    if (!researchMd) throw new Error('research.md를 찾을 수 없습니다.');
 
-      const youtubeAnalysisMd = readFile(projectId, 'youtube-analysis.md') ?? undefined;
+    const youtubeAnalysisMd = readFile(projectId, 'youtube-analysis.md') ?? undefined;
 
-      updateStatus(projectId, 'running:strategy');
-      emit(projectId, { type: 'status', status: 'running:strategy' });
+    updateStatus(projectId, 'running:strategy');
+    emit(projectId, { type: 'status', status: 'running:strategy' });
 
-      const strategyMd = await runStrategist(projectId, topic, researchMd, youtubeAnalysisMd);
+    const strategyMd = await runStrategist(projectId, topic, researchMd, youtubeAnalysisMd);
 
-      const concepts = parseConcepts(strategyMd);
-      updateStatus(projectId, 'waiting:concept', { concepts });
-      emit(projectId, { type: 'status', status: 'waiting:concept' });
-      emit(projectId, { type: 'concepts', concepts });
-      emit(projectId, { type: 'done' });
-      return; // Wait for user to select concept
-    }
+    const concepts = parseConcepts(strategyMd);
+    updateStatus(projectId, 'waiting:concept', { concepts });
+    emit(projectId, { type: 'status', status: 'waiting:concept' });
+    emit(projectId, { type: 'concepts', concepts });
+    emit(projectId, { type: 'done' });
   } catch (err) {
     handleError(projectId, err);
   }

@@ -2,6 +2,7 @@ export type PipelineStatus =
   | 'idle'
   | 'running:research'
   | 'done:research'
+  | 'waiting:youtube-urls'
   | 'running:youtube'
   | 'done:youtube'
   | 'running:strategy'
@@ -49,6 +50,7 @@ export interface Project {
   updatedAt: string;
   error?: string;
   concepts?: Concept[];
+  youtubeUrls?: string[];
   reviewScore?: number;
   reviewVerdict?: string;
 }

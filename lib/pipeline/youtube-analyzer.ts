@@ -30,7 +30,26 @@ async function tavilySearch(query: string): Promise<string | null> {
   }
 }
 
-export async function runYoutubeAnalyzer(projectId: string, topic: string): Promise<string> {
+async function fetchUrlMetadata(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VideoMaker/1.0)' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const get = (prop: string) => html.match(new RegExp(`<meta[^>]+property="${prop}"[^>]+content="([^"]+)"`, 'i'))?.[1]
+      ?? html.match(new RegExp(`<meta[^>]+content="([^"]+)"[^>]+property="${prop}"`, 'i'))?.[1]
+      ?? '';
+    const title = get('og:title') || html.match(/<title>([^<]+)<\/title>/i)?.[1] || '';
+    const desc = get('og:description');
+    return `URL: ${url}\n제목: ${title}\n설명: ${desc}`.trim();
+  } catch {
+    return null;
+  }
+}
+
+export async function runYoutubeAnalyzer(projectId: string, topic: string, urls?: string[]): Promise<string> {
   emit(projectId, { type: 'log', message: `[1.5단계] 유튜브 레퍼런스 분석 중...` });
 
   const queries = [
@@ -39,6 +58,15 @@ export async function runYoutubeAnalyzer(projectId: string, topic: string): Prom
   ];
 
   let searchContext = '';
+
+  // User-provided URLs
+  if (urls && urls.length > 0) {
+    emit(projectId, { type: 'log', message: `🔗 레퍼런스 URL ${urls.length}개 분석 중...` });
+    const metaResults = await Promise.all(urls.map(fetchUrlMetadata));
+    const metaSection = metaResults.filter(Boolean).join('\n\n');
+    if (metaSection) searchContext += `\n\n### 사용자 제공 레퍼런스 URL\n${metaSection}`;
+  }
+
   for (const query of queries) {
     emit(projectId, { type: 'log', message: `🔍 유튜브 검색: "${query}"` });
     const result = await tavilySearch(query);
