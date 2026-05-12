@@ -143,15 +143,20 @@ export async function runPipelineFromPlanning(projectId: string) {
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });
 
-    const reviewMd = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
-    const { score, verdict } = parseReviewScore(reviewMd);
+    let reviewMdFinal = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
+    let { score, verdict } = parseReviewScore(reviewMdFinal);
 
-    // 필수 수정 항목이 있으면 자동 적용
-    if (hasMandatoryRevisions(reviewMd)) {
+    // 필수 수정 항목이 있으면 자동 적용 후 재검토
+    if (hasMandatoryRevisions(reviewMdFinal)) {
       emit(projectId, { type: 'log', message: '🔴 필수 수정 항목 감지 — 자동 적용 중...' });
       updateStatus(projectId, 'running:revising');
       emit(projectId, { type: 'status', status: 'running:revising' });
-      await runScriptReviser(projectId, scriptMd, reviewMd);
+      const revisedScript = await runScriptReviser(projectId, scriptMd, reviewMdFinal);
+
+      updateStatus(projectId, 'running:review');
+      emit(projectId, { type: 'status', status: 'running:review' });
+      reviewMdFinal = await runReviewer(projectId, topic, revisedScript, briefMd, factCheckMd);
+      ({ score, verdict } = parseReviewScore(reviewMdFinal));
     }
 
     updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
@@ -258,7 +263,7 @@ export async function resumePipeline(projectId: string) {
     let script = readFile(projectId, 'script-final.md');
     let factCheck = readFile(projectId, 'fact-check.md');
     const review = readFile(projectId, 'script-review.md');
-    let scene = readFile(projectId, 'scene-design.md');
+    const scene = readFile(projectId, 'scene-design.md');
     let prompts = readFile(projectId, 'image-prompts.md');
     const imageFiles = listFiles(projectId, 'images').filter(f => !f.startsWith('.'));
 

@@ -115,10 +115,10 @@ export function parseConcepts(strategyMd: string): Concept[] {
     const name = conceptBlocks[i + 1]?.trim() ?? `컨셉 ${index}`;
     const body = conceptBlocks[i + 2] ?? '';
 
-    const titleMatches = [...body.matchAll(/[-*]\s+[ABC]:\s+"([^"]+)"/g)];
+    const titleMatches = [...body.matchAll(/[-*]\s+[ABC]:\s+`?"([^"]+)"/g)];
     const titles = titleMatches.map((m) => m[1]);
 
-    const angleMatch = body.match(/접근\s*방식[:\s]+([^\n]+)/);
+    const angleMatch = body.match(/접근\s*방식\**\s*:\s*([^\n]+)/);
     const angle = angleMatch ? angleMatch[1].trim() : '';
 
     concepts.push({ index, name, angle, titles });

@@ -4,7 +4,7 @@ import { runScriptReviser } from '@/lib/pipeline/script-reviser';
 import { runReviewer } from '@/lib/pipeline/reviewer';
 import { parseReviewScore } from '@/lib/project';
 import { emit } from '@/lib/events';
-import { hasMandatoryRevisions } from '@/lib/pipeline';
+import { hasMandatoryRevisions, handleError } from '@/lib/pipeline';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,15 +36,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     updateStatus(id, 'running:review');
     emit(id, { type: 'status', status: 'running:review' });
 
-    const newReviewMd = await runReviewer(id, project!.topic, revisedScript, briefMd!, factCheckMd);
-    const { score, verdict } = parseReviewScore(newReviewMd);
+    let reviewMdFinal = await runReviewer(id, project!.topic, revisedScript, briefMd!, factCheckMd);
+    let { score, verdict } = parseReviewScore(reviewMdFinal);
 
     // 재검토 후에도 필수 수정 항목이 있으면 한 번 더 수정 (무한 루프 방지를 위해 1회만)
-    if (hasMandatoryRevisions(newReviewMd)) {
+    if (hasMandatoryRevisions(reviewMdFinal)) {
       emit(id, { type: 'log', message: '🔴 재검토 후 필수 수정 항목 감지 — 최종 수정 적용 중...' });
       updateStatus(id, 'running:revising');
       emit(id, { type: 'status', status: 'running:revising' });
-      await runScriptReviser(id, revisedScript, newReviewMd);
+      const finalScript = await runScriptReviser(id, revisedScript, reviewMdFinal);
+
+      updateStatus(id, 'running:review');
+      emit(id, { type: 'status', status: 'running:review' });
+      reviewMdFinal = await runReviewer(id, project!.topic, finalScript, briefMd!, factCheckMd);
+      ({ score, verdict } = parseReviewScore(reviewMdFinal));
     }
 
     updateStatus(id, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
@@ -53,12 +58,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     emit(id, { type: 'done' });
   }
 
-  run().catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    updateStatus(id, 'error', { error: message });
-    emit(id, { type: 'error', message });
-    emit(id, { type: 'done' });
-  });
+  run().catch((err) => handleError(id, err));
 
   return NextResponse.json({ started: true });
 }

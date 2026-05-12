@@ -46,7 +46,11 @@ ${reviewMd}
 \`\`\`
 
 ### 3단계: 수정된 대본
-위 체크리스트의 모든 항목을 반영한 완전한 대본을 출력하세요.
+위 체크리스트의 모든 항목을 반영한 완전한 대본을 아래 마커 사이에 출력하세요.
+
+===대본 시작===
+(수정된 대본 전체 내용)
+===대본 끝===
 
 규칙:
 - 잘된 점(🟢)은 유지하세요
@@ -59,8 +63,14 @@ ${reviewMd}
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');
   }
 
-  writeFile(projectId, 'script-final.md', revised);
+  const sentinelMatch = revised.match(/===대본 시작===\r?\n([\s\S]+?)\r?\n===대본 끝===/);
+  if (!sentinelMatch) {
+    throw new Error('대본 마커(===대본 시작===)를 찾을 수 없습니다. LLM 출력 형식을 확인하세요.');
+  }
+  const cleanScript = sentinelMatch[1].trim();
+
+  writeFile(projectId, 'script-final.md', cleanScript);
   emit(projectId, { type: 'log', message: '✅ 수정된 script-final.md 저장 완료' });
 
-  return revised;
+  return cleanScript;
 }

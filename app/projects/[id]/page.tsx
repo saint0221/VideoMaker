@@ -359,6 +359,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         fetch(`/api/projects/${id}/media?file=reference.png`)
           .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.png&t=${Date.now()}`); })
           .catch(() => {});
+        const imageStages: string[] = ['done:prompts', 'waiting:reference', 'running:images'];
+        if (p.status === 'waiting:images' || (p.status === 'error' && p.lastStatus && imageStages.includes(p.lastStatus))) {
+          fetch(`/api/projects/${id}/images`)
+            .then(r => r.json())
+            .then((data: { images: Array<{ sceneId: string; localPath: string }> }) => {
+              if (data.images?.length) setGeneratedImages(data.images);
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => router.push('/'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
