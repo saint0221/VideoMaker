@@ -2,6 +2,38 @@ import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude } from './claude-runner';
 
+function extractFinalScript(output: string): string {
+  const sentinelMatch = output.match(/===대본 시작===\r?\n([\s\S]+?)\r?\n===대본 끝===/);
+  let script = sentinelMatch ? sentinelMatch[1].trim() : output.trim();
+
+  const titleIndex = script.indexOf('# 대본:');
+  if (titleIndex > 0) {
+    script = script.slice(titleIndex).trim();
+  }
+
+  script = script.replace(/\r\n/g, '\n').trim();
+
+  if (!script.startsWith('# 대본:')) {
+    throw new Error('수정된 대본이 "# 대본:"으로 시작하지 않습니다. LLM 출력 형식을 확인하세요.');
+  }
+
+  const forbiddenMarkers = [
+    '[필수 수정 체크리스트]',
+    '[권장 수정 체크리스트]',
+    '## 1단계',
+    '## 2단계',
+    '## 3단계',
+    '===대본 시작===',
+    '===대본 끝===',
+  ];
+
+  const foundMarker = forbiddenMarkers.find((marker) => script.includes(marker));
+  if (foundMarker) {
+    throw new Error(`수정 메모가 script-final.md에 섞였습니다: ${foundMarker}`);
+  }
+
+  return script;
+}
 
 export async function runScriptReviser(
   projectId: string,
@@ -11,7 +43,7 @@ export async function runScriptReviser(
   emit(projectId, { type: 'log', message: '[수정] 검수 권장사항 적용 중...' });
 
   const prompt = `당신은 한국어 유튜브 대본 편집 전문가입니다.
-검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 대본을 작성합니다.
+검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
 
 ---
 
@@ -25,38 +57,27 @@ ${reviewMd}
 
 ---
 
-## 작업 순서 (반드시 이 순서대로 출력)
+## 수정 원칙
 
-### 1단계: 필수 수정 항목 체크리스트
-검수 리포트의 "🔴 필수 수정" 항목을 아래 형식으로 하나씩 나열하고, 각각 어떻게 반영할지 명시하세요.
+- 검수 리포트의 "🔴 필수 수정"은 모두 반영합니다.
+- "🟡 권장 수정"은 대본 품질을 높이는 항목만 반영합니다.
+- "🟢 잘된 점"은 유지합니다.
+- 대본의 전체 형식과 씬 구성은 유지하되, 문장 품질·흐름·TTS 친화성은 적극적으로 개선합니다.
+- 필수 수정이 시간 초과를 만들면 기존 문장을 줄여 총 길이를 맞춥니다.
+- 나레이션에 중점(·), 슬래시(/), 화살표(→), 긴 괄호 설명, TTS 발음 메모를 넣지 않습니다.
+- 수정 체크리스트, 해설, 변경 요약, 검수 메모는 출력하지 않습니다.
 
-\`\`\`
-[필수 수정 체크리스트]
-1. (항목 원문) → 반영 방법: (구체적으로 무엇을 어떻게 바꿀지)
-2. (항목 원문) → 반영 방법: (구체적으로 무엇을 어떻게 바꿀지)
-...
-\`\`\`
+## 출력 형식
 
-### 2단계: 권장 수정 항목 체크리스트
-검수 리포트의 "🟡 권장 수정" 항목도 동일하게 나열하세요.
-
-\`\`\`
-[권장 수정 체크리스트]
-1. (항목 원문) → 반영 방법: (구체적으로 무엇을 어떻게 바꿀지)
-...
-\`\`\`
-
-### 3단계: 수정된 대본
-위 체크리스트의 모든 항목을 반영한 완전한 대본을 아래 마커 사이에 출력하세요.
+반드시 아래 마커 사이에 수정된 script-final.md 본문만 출력하세요.
+마커 밖에는 아무것도 쓰지 마세요.
 
 ===대본 시작===
-(수정된 대본 전체 내용)
-===대본 끝===
+# 대본: ...
 
-규칙:
-- 잘된 점(🟢)은 유지하세요
-- 대본의 전체 구조(씬 구성, 형식)는 그대로 유지하세요
-- 파일 저장이나 도구 사용 없이 텍스트만 출력합니다`;
+...
+===대본 끝===
+`;
 
   const revised = await runClaude(prompt);
 
@@ -64,11 +85,7 @@ ${reviewMd}
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');
   }
 
-  const sentinelMatch = revised.match(/===대본 시작===\r?\n([\s\S]+?)\r?\n===대본 끝===/);
-  if (!sentinelMatch) {
-    throw new Error('대본 마커(===대본 시작===)를 찾을 수 없습니다. LLM 출력 형식을 확인하세요.');
-  }
-  const cleanScript = sentinelMatch[1].trim();
+  const cleanScript = extractFinalScript(revised);
 
   writeFile(projectId, 'script-final.md', cleanScript);
   emit(projectId, { type: 'log', message: '✅ 수정된 script-final.md 저장 완료' });

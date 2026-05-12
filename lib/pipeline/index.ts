@@ -125,7 +125,8 @@ export async function runPipelineFromPlanning(projectId: string) {
     updateStatus(projectId, 'running:scripting');
     emit(projectId, { type: 'status', status: 'running:scripting' });
 
-    const scriptMd = await runScriptwriter(projectId, topic, briefMd, researchMd);
+    const youtubeAnalysisMd = readFile(projectId, 'youtube-analysis.md') ?? undefined;
+    const scriptMd = await runScriptwriter(projectId, topic, briefMd, researchMd, youtubeAnalysisMd);
 
     updateStatus(projectId, 'done:scripting');
     emit(projectId, { type: 'status', status: 'done:scripting' });
@@ -338,7 +339,7 @@ export async function resumePipeline(projectId: string) {
     if (!script) {
       updateStatus(projectId, 'running:scripting', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:scripting' });
-      script = await runScriptwriter(projectId, topic, brief!, research);
+      script = await runScriptwriter(projectId, topic, brief!, research, youtubeAnalysis ?? undefined);
       updateStatus(projectId, 'done:scripting');
       emit(projectId, { type: 'status', status: 'done:scripting' });
     }
