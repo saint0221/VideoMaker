@@ -34,6 +34,7 @@ export default function HomePage() {
   const [capcutRoot, setCapcutRoot] = useState('');
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsError, setSettingsError] = useState('');
+  const [pickingFolder, setPickingFolder] = useState(false);
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -63,6 +64,19 @@ export default function HomePage() {
     refresh();
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function handlePickFolder() {
+    setPickingFolder(true);
+    try {
+      const res = await fetch('/api/settings/pick-folder', { method: 'POST' });
+      const data = await res.json();
+      if (data.path) setCapcutRoot(data.path);
+    } catch {
+      // 무시
+    } finally {
+      setPickingFolder(false);
+    }
+  }
 
   async function handleSaveSettings(e: React.FormEvent) {
     e.preventDefault();
@@ -160,7 +174,7 @@ export default function HomePage() {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 }}>
           CapCut 프로젝트 저장 경로
         </p>
-        <form onSubmit={handleSaveSettings} style={{ display: 'flex', gap: 12 }}>
+        <form onSubmit={handleSaveSettings} style={{ display: 'flex', gap: 8 }}>
           <input
             type="text"
             value={capcutRoot}
@@ -178,6 +192,15 @@ export default function HomePage() {
               fontFamily: 'monospace',
             }}
           />
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={handlePickFolder}
+            disabled={pickingFolder}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {pickingFolder ? '열리는 중…' : '폴더 선택'}
+          </button>
           <button type="submit" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
             {settingsSaved ? '저장됨 ✓' : '저장'}
           </button>
