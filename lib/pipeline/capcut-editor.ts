@@ -574,12 +574,27 @@ interface SceneAsset {
   duration: number;  // microseconds, audio-driven
 }
 
+const CAPCUT_ROOT_META = '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft/root_meta_info.json';
+const CAPCUT_ROOT_DEFAULT = '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft';
+
+function getCapcutRoot(): string {
+  if (fs.existsSync(CAPCUT_ROOT_META)) {
+    try {
+      const m = JSON.parse(fs.readFileSync(CAPCUT_ROOT_META, 'utf-8'));
+      if (m.root_path) return m.root_path as string;
+    } catch { /* fallback */ }
+  }
+  return CAPCUT_ROOT_DEFAULT;
+}
+
 export async function runCapcutEditor(projectId: string): Promise<void> {
   emit(projectId, { type: 'log', message: '[11단계] CapCut 프로젝트 생성 중...' });
 
   const pDir = projectDir(projectId);
-  const capcutDir = path.join(pDir, 'capcut-project');
-  if (!fs.existsSync(capcutDir)) fs.mkdirSync(capcutDir, { recursive: true });
+  const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;
+  const capcutRoot = getCapcutRoot();
+  const capcutDir = path.join(capcutRoot, draftName);
+  fs.mkdirSync(capcutDir, { recursive: true });
 
   const videosDir = path.join(pDir, 'videos');
   const audioDir = path.join(pDir, 'audio');
@@ -722,7 +737,6 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const nowSec = Math.floor(Date.now() / 1000);
   const draftId = uuid();
   const timelineId = uuid();
-  const draftName = `VideoMaker_${projectId.slice(0, 8)}`;
 
   const tracks: object[] = [
     {
@@ -882,7 +896,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     draft_json_file: path.join(capcutDir, 'draft_content.json'),
     draft_name: draftName,
     draft_new_version: '',
-    draft_root_path: '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft',
+    draft_root_path: capcutRoot,
     draft_timeline_materials_size: 0,
     draft_type: '',
     draft_web_article_video_enter_from: '',
@@ -945,10 +959,9 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   );
 
   // Register in CapCut's root_meta_info.json
-  const rootMetaPath = '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft/root_meta_info.json';
-  if (fs.existsSync(rootMetaPath)) {
+  if (fs.existsSync(CAPCUT_ROOT_META)) {
     try {
-      const rootMeta = JSON.parse(fs.readFileSync(rootMetaPath, 'utf-8'));
+      const rootMeta = JSON.parse(fs.readFileSync(CAPCUT_ROOT_META, 'utf-8'));
       const store: object[] = Array.isArray(rootMeta.all_draft_store)
         ? rootMeta.all_draft_store
         : [];
@@ -977,7 +990,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         draft_json_file: path.join(capcutDir, 'draft_content.json'),
         draft_name: draftName,
         draft_new_version: '',
-        draft_root_path: '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft',
+        draft_root_path: capcutRoot,
         draft_timeline_materials_size: 0,
         draft_type: '',
         draft_web_article_video_enter_from: '',
@@ -1000,7 +1013,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         ? rootMeta.draft_ids + 1
         : filtered.length;
 
-      fs.writeFileSync(rootMetaPath, JSON.stringify(rootMeta, null, 2));
+      fs.writeFileSync(CAPCUT_ROOT_META, JSON.stringify(rootMeta, null, 2));
       emit(projectId, { type: 'log', message: '✅ root_meta_info.json 등록 완료' });
     } catch (e) {
       emit(projectId, { type: 'log', message: `⚠️ root_meta_info.json 업데이트 실패: ${e}` });
@@ -1009,6 +1022,6 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   emit(projectId, {
     type: 'log',
-    message: `✅ CapCut 프로젝트 생성 완료 → capcut-project/ (총 ${(totalDuration / 1_000_000).toFixed(1)}초)`,
+    message: `✅ CapCut 프로젝트 생성 완료 — CapCut을 재시작하면 프로젝트 목록에 자동으로 나타납니다 (총 ${(totalDuration / 1_000_000).toFixed(1)}초)`,
   });
 }
