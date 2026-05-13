@@ -224,7 +224,17 @@ export async function runPostScript(projectId: string) {
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
-    // Stage 9: Auto-start if reference image already uploaded, otherwise wait
+    // Stage 9: Skip generation if images already exist
+    const existingImages = listFiles(projectId, 'images').filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+    if (existingImages.length > 0) {
+      emit(projectId, { type: 'log', message: `📁 기존 이미지 ${existingImages.length}장 감지 — 이미지 생성 건너뜀` });
+      updateStatus(projectId, 'waiting:images');
+      emit(projectId, { type: 'status', status: 'waiting:images' });
+      emit(projectId, { type: 'done' });
+      return;
+    }
+
+    // Auto-start if reference image already uploaded, otherwise wait
     const referenceImagePath = findReferenceImage(projectId) ?? undefined;
     if (referenceImagePath) {
       emit(projectId, { type: 'log', message: '📎 레퍼런스 이미지 감지 — 이미지 생성 자동 시작' });
