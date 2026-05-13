@@ -1,12 +1,9 @@
 import { emit } from '../events';
 import { projectDir, loadProject, saveProject } from '../project';
+import { loadSettings } from '../settings';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-
-const HOME = process.env.HOME ?? '/Users/hongss';
-const CAPCUT_ROOT = process.env.CAPCUT_ROOT ?? path.join(HOME, 'Movies/CapCut/User Data/Projects/com.lveditor.draft');
-const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
 
 // UUIDs in CapCut are UPPERCASE
 function uuid(): string {
@@ -580,6 +577,9 @@ interface SceneAsset {
 
 export async function runCapcutEditor(projectId: string): Promise<void> {
   emit(projectId, { type: 'log', message: '[11단계] CapCut 프로젝트 생성 중...' });
+
+  const CAPCUT_ROOT = loadSettings().capcutRoot;
+  const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
 
   const pDir = projectDir(projectId);
   const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;

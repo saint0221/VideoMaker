@@ -31,6 +31,9 @@ export default function HomePage() {
   const [topic, setTopic] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [capcutRoot, setCapcutRoot] = useState('');
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -38,6 +41,10 @@ export default function HomePage() {
     await fetch(`/api/projects/${id}`, { method: 'DELETE' });
     setProjects(prev => prev.filter(p => p.id !== id));
   }
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.json()).then(s => setCapcutRoot(s.capcutRoot ?? '')).catch(() => {});
+  }, []);
 
   useEffect(() => {
     function refresh() {
@@ -56,6 +63,24 @@ export default function HomePage() {
     refresh();
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSettingsError('');
+    setSettingsSaved(false);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capcutRoot }),
+      });
+      if (!res.ok) throw new Error('저장 실패');
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch {
+      setSettingsError('설정 저장에 실패했습니다.');
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +149,42 @@ export default function HomePage() {
         {error && (
           <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>
             {error}
+          </p>
+        )}
+      </section>
+
+      <section className="card" style={{ marginBottom: 40 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, marginTop: 0, marginBottom: 4, color: 'var(--text)' }}>
+          설정
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 }}>
+          CapCut 프로젝트 저장 경로
+        </p>
+        <form onSubmit={handleSaveSettings} style={{ display: 'flex', gap: 12 }}>
+          <input
+            type="text"
+            value={capcutRoot}
+            onChange={e => setCapcutRoot(e.target.value)}
+            placeholder="~/Movies/CapCut/User Data/Projects/com.lveditor.draft"
+            style={{
+              flex: 1,
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: '10px 16px',
+              color: 'var(--text)',
+              fontSize: 13,
+              outline: 'none',
+              fontFamily: 'monospace',
+            }}
+          />
+          <button type="submit" className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>
+            {settingsSaved ? '저장됨 ✓' : '저장'}
+          </button>
+        </form>
+        {settingsError && (
+          <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            {settingsError}
           </p>
         )}
       </section>

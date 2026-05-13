@@ -1,0 +1,30 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+
+const SETTINGS_PATH = path.join(process.cwd(), 'data', 'settings.json');
+
+export interface Settings {
+  capcutRoot: string;
+}
+
+function defaults(): Settings {
+  return {
+    capcutRoot: path.join(os.homedir(), 'Movies/CapCut/User Data/Projects/com.lveditor.draft'),
+  };
+}
+
+export function loadSettings(): Settings {
+  if (!fs.existsSync(SETTINGS_PATH)) return defaults();
+  try {
+    return { ...defaults(), ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) };
+  } catch {
+    return defaults();
+  }
+}
+
+export function saveSettings(settings: Settings): void {
+  const dir = path.dirname(SETTINGS_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+}
