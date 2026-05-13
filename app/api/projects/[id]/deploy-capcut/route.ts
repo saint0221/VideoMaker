@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { loadProject, projectDir } from '@/lib/project';
-
-const CAPCUT_ROOT_DEFAULT = path.join(
-  process.env.HOME ?? '/Users/hongss',
-  'Movies/CapCut/User Data/Projects/com.lveditor.draft'
-);
-const CAPCUT_ROOT = process.env.CAPCUT_ROOT ?? CAPCUT_ROOT_DEFAULT;
-const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
+import { loadSettings } from '@/lib/settings';
 
 function copyDirRecursive(src: string, dest: string) {
   fs.mkdirSync(dest, { recursive: true });
@@ -39,6 +33,9 @@ function replacePathsInDir(dir: string, oldStr: string, newStr: string) {
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  const { capcutRoot: CAPCUT_ROOT } = loadSettings();
+  const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
 
   const project = loadProject(id);
   if (!project) {
