@@ -586,6 +586,12 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const audioDir = path.join(pDir, 'audio');
   const subsDir = path.join(pDir, 'subtitles');
 
+  // Bundle media into capcut-project so the folder is self-contained
+  const bundledVideosDir = path.join(capcutDir, 'videos');
+  const bundledAudioDir = path.join(capcutDir, 'audio');
+  fs.mkdirSync(bundledVideosDir, { recursive: true });
+  fs.mkdirSync(bundledAudioDir, { recursive: true });
+
   const videoFiles = fs.existsSync(videosDir)
     ? fs.readdirSync(videosDir).filter((f) => f.endsWith('.mp4')).sort()
     : [];
@@ -607,15 +613,28 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     const audioSrc = path.join(audioDir, `scene_${id}.mp3`);
     const srtSrc = path.join(subsDir, `scene_${id}.srt`);
 
-    const audioFile = fs.existsSync(audioSrc) ? audioSrc : undefined;
+    // Bundle audio into capcut-project/audio/
+    let audioFile: string | undefined;
+    if (fs.existsSync(audioSrc)) {
+      const audioDest = path.join(bundledAudioDir, `scene_${id}.mp3`);
+      fs.copyFileSync(audioSrc, audioDest);
+      audioFile = audioDest;
+    }
+
     const srtFile = fs.existsSync(srtSrc) ? srtSrc : undefined;
 
     const videoPattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.mp4$`);
+    // Bundle videos into capcut-project/videos/
     const sceneVideoFiles = fs.existsSync(videosDir)
       ? fs.readdirSync(videosDir)
           .filter((f) => videoPattern.test(f))
           .sort()
-          .map((f) => path.join(videosDir, f))
+          .map((f) => {
+            const srcPath = path.join(videosDir, f);
+            const destPath = path.join(bundledVideosDir, f);
+            fs.copyFileSync(srcPath, destPath);
+            return destPath;
+          })
       : [];
 
     const audioDuration = audioFile ? getFileDuration(audioFile) : 0;
