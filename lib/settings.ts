@@ -9,9 +9,12 @@ export interface Settings {
 }
 
 function defaults(): Settings {
-  return {
-    capcutRoot: path.join(os.homedir(), 'Movies/CapCut/User Data/Projects/com.lveditor.draft'),
-  };
+  const home = os.homedir();
+  const capcutRoot =
+    process.platform === 'win32'
+      ? path.join(home, 'AppData', 'Local', 'CapCut', 'User Data', 'Projects', 'com.lveditor.draft')
+      : path.join(home, 'Movies', 'CapCut', 'User Data', 'Projects', 'com.lveditor.draft');
+  return { capcutRoot };
 }
 
 export function loadSettings(): Settings {
