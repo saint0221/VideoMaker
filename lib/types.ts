@@ -54,6 +54,8 @@ export interface Project {
   reviewScore?: number;
   reviewVerdict?: string;
   capcutPath?: string;
+  capcutDraftId?: string;
+  capcutTimelineId?: string;
 }
 
 export type SSEEvent =

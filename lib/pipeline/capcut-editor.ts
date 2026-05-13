@@ -582,6 +582,11 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
 
   const pDir = projectDir(projectId);
+
+  // Reuse stable IDs so re-runs update the existing CapCut entry instead of adding duplicates
+  const existingProject = loadProject(projectId);
+  const draftId = existingProject?.capcutDraftId ?? uuid();
+  const timelineId = existingProject?.capcutTimelineId ?? uuid();
   const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;
   const capcutDir = path.join(CAPCUT_ROOT, draftName);
   fs.mkdirSync(capcutDir, { recursive: true });
@@ -753,8 +758,6 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const totalDuration = timelineOffset;
   const nowUs = Date.now() * 1000;
   const nowSec = Math.floor(Date.now() / 1000);
-  const draftId = uuid();
-  const timelineId = uuid();
 
   const tracks: object[] = [
     {
@@ -1091,10 +1094,10 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   fs.writeFileSync(CAPCUT_ROOT_META, JSON.stringify(rootMeta, null, 2));
 
-  // Save the CapCut project path to project state
+  // Save CapCut project path and stable IDs so re-runs reuse the same entry
   const project = loadProject(projectId);
   if (project) {
-    saveProject({ ...project, capcutPath: capcutDir });
+    saveProject({ ...project, capcutPath: capcutDir, capcutDraftId: draftId, capcutTimelineId: timelineId });
   }
 
   emit(projectId, {
