@@ -965,15 +965,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <FileLink projectId={id} file="strategy.md" label="전략" />
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <a
-              href={`/api/projects/${id}/download-capcut`}
-              className="btn btn-primary"
-              style={{ fontSize: 12, padding: '5px 14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-            >
-              ↓ CapCut 프로젝트 다운로드
-            </a>
             <button
-              className="btn btn-outline"
+              className="btn btn-primary"
               style={{ fontSize: 12, padding: '5px 14px' }}
               onClick={handleRegenerateCapcut}
             >
