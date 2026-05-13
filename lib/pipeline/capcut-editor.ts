@@ -196,6 +196,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
           material_id: materialId,
           target_timerange: { start: sceneStart + clipOffset, duration: clipDuration },
           source_timerange: { start: 0, duration: clipDuration },
+          speed: 1.0,
           extra_material_refs: [],
         });
         clipOffset += clipDuration;
@@ -214,6 +215,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
             material_id: freezeMaterialId,
             target_timerange: { start: sceneStart + clipOffset, duration: gap },
             source_timerange: { start: 0, duration: gap },
+            speed: 1.0,
             extra_material_refs: [],
           });
         }
@@ -231,6 +233,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
           material_id: materialId,
           target_timerange: { start: sceneStart + imageOffset, duration: thisDuration },
           source_timerange: { start: 0, duration: thisDuration },
+          speed: 1.0,
           extra_material_refs: [],
         });
         imageOffset += thisDuration;
