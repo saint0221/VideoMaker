@@ -115,7 +115,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     return;
   }
 
-  const imageFiles = fs.readdirSync(imagesDir).filter((f) => f.endsWith('.jpg')).sort();
+  const imageFiles = fs.readdirSync(imagesDir).filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f)).sort();
   if (imageFiles.length === 0) {
     emit(projectId, { type: 'log', message: '⚠️ 생성된 이미지 없음 — 영상 생성 건너뜀' });
     return;
@@ -167,7 +167,8 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
       emit(projectId, { type: 'log', message: `  씬 ${sceneNum}-${suffix} 영상 생성 중… (약 1~2분 소요)` });
 
       const imageBuffer = fs.readFileSync(path.join(imagesDir, imageFile));
-      const imageUrl = await uploadBufferToFal(apiKey, imageBuffer, imageFile, 'image/jpeg');
+      const mimeType = /\.png$/i.test(imageFile) ? 'image/png' : /\.webp$/i.test(imageFile) ? 'image/webp' : 'image/jpeg';
+      const imageUrl = await uploadBufferToFal(apiKey, imageBuffer, imageFile, mimeType);
 
       const onProgress = (msg: string) => emit(projectId, { type: 'log', message: msg });
       const videoUrl = await generateVideo(

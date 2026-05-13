@@ -79,37 +79,39 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
   },
 ];
 
-function getStageNodeClass(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isErrorStage: boolean): string {
+function getStageNodeClass(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isPaused: boolean, isErrorStage: boolean): string {
   if (stageIndex < currentStatusIndex) return 'stage-node stage-node-done';
   if (stageIndex === currentStatusIndex) {
     if (isErrorStage) return 'stage-node stage-node-error';
+    if (isPaused) return 'stage-node stage-node-waiting';
     return isRunning ? 'stage-node stage-node-active' : 'stage-node stage-node-done';
   }
   return 'stage-node stage-node-pending';
 }
 
-function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isErrorStage: boolean): string {
+function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isRunning: boolean, isPaused: boolean, isErrorStage: boolean): string {
   if (stageIndex < currentStatusIndex) return '✓';
   if (stageIndex === currentStatusIndex) {
     if (isErrorStage) return '✗';
+    if (isPaused) return '⏸';
     return isRunning ? '▶' : '✓';
   }
   return String(stageIndex + 1);
 }
 
-const WAITING_ACTIVE_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:reference', 'waiting:images'];
+const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:reference', 'waiting:images'];
 
-function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; waiting: boolean } {
+function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; paused: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
-  const waiting = WAITING_ACTIVE_STATUSES.includes(status as PipelineStatus);
+  const paused = ALL_WAITING_STATUSES.includes(status as PipelineStatus);
   for (let i = 0; i < STAGES.length; i++) {
     if (STAGES[i].statuses.includes(effective)) {
-      const running = status !== 'error' && (effective.startsWith('running:') || waiting);
-      return { stageIdx: i, running, waiting };
+      const running = status !== 'error' && effective.startsWith('running:');
+      return { stageIdx: i, running, paused };
     }
   }
-  if (effective === 'completed') return { stageIdx: STAGES.length, running: false, waiting: false };
-  return { stageIdx: -1, running: false, waiting: false };
+  if (effective === 'completed') return { stageIdx: STAGES.length, running: false, paused: false };
+  return { stageIdx: -1, running: false, paused: false };
 }
 
 function renderMarkdown(text: string): string {
@@ -363,15 +365,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         fetch(`/api/projects/${id}/media?file=reference.png`)
           .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.png&t=${Date.now()}`); })
           .catch(() => {});
-        const imageStages: string[] = ['done:prompts', 'waiting:reference', 'running:images'];
-        if (p.status === 'waiting:images' || (p.status === 'error' && p.lastStatus && imageStages.includes(p.lastStatus))) {
-          fetch(`/api/projects/${id}/images`)
-            .then(r => r.json())
-            .then((data: { images: Array<{ sceneId: string; localPath: string }> }) => {
-              if (data.images?.length) setGeneratedImages(data.images);
-            })
-            .catch(() => {});
-        }
+        fetch(`/api/projects/${id}/images`)
+          .then(r => r.json())
+          .then((data: { images: Array<{ sceneId: string; localPath: string }> }) => {
+            if (data.images?.length) setGeneratedImages(data.images);
+          })
+          .catch(() => {});
       })
       .catch(() => router.push('/'));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -473,7 +472,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     setConfirmingImages(true);
     setLogs([]);
     connectSSE();
-    await fetch(`/api/projects/${id}/confirm-images`, { method: 'POST' });
+    const res = await fetch(`/api/projects/${id}/confirm-images`, { method: 'POST' });
+    if (res.ok) {
+      setProject(prev => prev ? { ...prev, status: 'running:video' } : prev);
+    } else {
+      setConfirmingImages(false);
+    }
   }
 
   async function handleRegenerateImages() {
@@ -514,6 +518,18 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     setLogs([]);
     connectSSE();
     await fetch(`/api/projects/${id}/regenerate-prompts`, { method: 'POST' });
+  }
+
+  async function handleUseExistingImages() {
+    setConfirmingImages(true);
+    setLogs([]);
+    connectSSE();
+    const res = await fetch(`/api/projects/${id}/use-existing-images`, { method: 'POST' });
+    if (res.ok) {
+      setProject(prev => prev ? { ...prev, status: 'running:video' } : prev);
+    } else {
+      setConfirmingImages(false);
+    }
   }
 
   async function handleYoutubeUrls(urls: string[]) {
@@ -579,7 +595,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const { stageIdx, running, waiting } = getStatusIndex(project.status, project.lastStatus);
+  const { stageIdx, running, paused } = getStatusIndex(project.status, project.lastStatus);
   const isIdle = project.status === 'idle';
   const isWaitingYoutubeUrls = project.status === 'waiting:youtube-urls';
   const isWaitingConcept = project.status === 'waiting:concept';
@@ -593,6 +609,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:reference', 'running:images'];
   const isErrorInImagePhase = isError && !!project.lastStatus && IMAGE_PHASE_STATUSES.includes(project.lastStatus);
   const showStartImages = isWaitingReference || isErrorInImagePhase;
+  const VIDEO_OR_LATER: PipelineStatus[] = ['running:video', 'done:video', 'running:capcut', 'completed'];
+  const showUseExistingImages =
+    generatedImages.length > 0 &&
+    !isWaitingImages &&
+    !isRunning &&
+    !VIDEO_OR_LATER.includes(project.status);
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 24px' }}>
@@ -622,26 +644,33 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       <div className="card" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
           {STAGES.map((stage, i) => {
-            const isDone = i < stageIdx || (i === stageIdx && (!running || isCompleted));
-            const isActive = i === stageIdx && running;
-            const isErrorStage = isError && i === stageIdx;
+            const isCurrentStage = i === stageIdx;
+            const isActive = isCurrentStage && running;
+            const isPausedStage = isCurrentStage && paused;
+            const isDone = i < stageIdx || (isCurrentStage && !running && !paused);
+            const isErrorStage = isError && isCurrentStage;
             return (
               <div key={stage.key} style={{ display: 'flex', alignItems: 'center', flex: i < STAGES.length - 1 ? 1 : 'none' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <div className={getStageNodeClass(i, stageIdx, running && i === stageIdx, isErrorStage)}>
-                    {getStageNodeContent(i, stageIdx, running && i === stageIdx, isErrorStage)}
+                  <div className={getStageNodeClass(i, stageIdx, isActive, isPausedStage, isErrorStage)}>
+                    {getStageNodeContent(i, stageIdx, isActive, isPausedStage, isErrorStage)}
                   </div>
                   <span style={{
                     fontSize: 10,
                     whiteSpace: 'nowrap',
-                    color: isErrorStage ? 'var(--error)' : isActive ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--text-muted)',
-                    fontWeight: isErrorStage || isActive ? 700 : isDone ? 500 : 400,
+                    color: isErrorStage ? 'var(--error)' : isPausedStage ? 'var(--warning)' : isActive ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--text-muted)',
+                    fontWeight: isErrorStage || isPausedStage || isActive ? 700 : isDone ? 500 : 400,
                   }}>
                     {stage.label}
                   </span>
                   {isActive && (
                     <span style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 600, letterSpacing: '0.03em' }}>
-                      {waiting && i === stageIdx ? '대기중' : '진행중'}
+                      진행중
+                    </span>
+                  )}
+                  {isPausedStage && (
+                    <span style={{ fontSize: 9, color: 'var(--warning)', fontWeight: 600, letterSpacing: '0.03em' }}>
+                      대기중
                     </span>
                   )}
                   {isErrorStage && (
@@ -688,7 +717,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="card" style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-              {sseActive ? `⚡ 실행 중… (${formatSec(elapsedSec)} 경과)` : '로그'}
+              {sseActive && isRunning ? `⚡ 실행 중… (${formatSec(elapsedSec)} 경과)` : '로그'}
             </h3>
             {sseActive && (
               <span style={{ fontSize: 12, color: 'var(--accent)' }}>실시간 업데이트</span>
@@ -871,6 +900,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             {showStartImages && (
               <button className="btn btn-primary" onClick={handleStartImages} style={{ marginLeft: referenceImageUrl ? 0 : 'auto' }}>
                 🖼 이미지 생성 시작{referenceImageUrl ? ' (레퍼런스 적용)' : ''}
+              </button>
+            )}
+            {showUseExistingImages && (
+              <button
+                className="btn btn-outline"
+                onClick={handleUseExistingImages}
+                disabled={confirmingImages}
+                style={{ marginLeft: showStartImages ? 0 : 'auto' }}
+              >
+                {confirmingImages ? '⏳ 영상 생성 준비 중…' : `🎬 기존 이미지로 영상 생성 (${generatedImages.length}장)`}
               </button>
             )}
           </div>
