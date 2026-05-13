@@ -984,7 +984,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <FileLink projectId={id} file="strategy.md" label="전략" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 className="btn btn-primary"
                 style={{ fontSize: 12, padding: '5px 14px' }}
@@ -993,6 +993,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               >
                 {deploying ? '배포 중…' : '▶ CapCut에서 열기'}
               </button>
+              <a
+                href={`/api/projects/${id}/download-capcut`}
+                className="btn btn-outline"
+                style={{ fontSize: 12, padding: '5px 14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+              >
+                ↓ CapCut 프로젝트 다운로드
+              </a>
               <button
                 className="btn btn-outline"
                 style={{ fontSize: 12, padding: '5px 14px' }}
