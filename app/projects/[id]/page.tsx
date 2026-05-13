@@ -327,8 +327,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const [youtubeUrlSubmitting, setYoutubeUrlSubmitting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [deploying, setDeploying] = useState(false);
-  const [deployResult, setDeployResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
@@ -549,23 +547,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-capcut`, { method: 'POST' });
   }
 
-  async function handleDeployCapcut() {
-    setDeploying(true);
-    setDeployResult(null);
-    try {
-      const res = await fetch(`/api/projects/${id}/deploy-capcut`, { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        setDeployResult({ ok: true, msg: 'CapCut에 등록 완료! CapCut을 재시작하면 프로젝트 목록에 나타납니다.' });
-      } else {
-        setDeployResult({ ok: false, msg: data.error ?? '배포 실패' });
-      }
-    } catch {
-      setDeployResult({ ok: false, msg: '네트워크 오류' });
-    } finally {
-      setDeploying(false);
-    }
-  }
 
   async function handleDelete() {
     if (!confirm('이 프로젝트를 삭제하시겠습니까? 모든 파일이 삭제됩니다.')) return;
@@ -983,29 +964,21 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <FileLink projectId={id} file="research.md" label="리서치" />
             <FileLink projectId={id} file="strategy.md" label="전략" />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn btn-primary"
-                style={{ fontSize: 12, padding: '5px 14px' }}
-                onClick={handleDeployCapcut}
-                disabled={deploying}
-              >
-                {deploying ? '배포 중…' : '▶ CapCut에서 열기'}
-              </button>
-              <button
-                className="btn btn-outline"
-                style={{ fontSize: 12, padding: '5px 14px' }}
-                onClick={handleRegenerateCapcut}
-              >
-                ↺ CapCut 프로젝트 재생성
-              </button>
-            </div>
-            {deployResult && (
-              <div style={{ fontSize: 12, color: deployResult.ok ? 'var(--success)' : 'var(--error)' }}>
-                {deployResult.msg}
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <a
+              href={`/api/projects/${id}/download-capcut`}
+              className="btn btn-primary"
+              style={{ fontSize: 12, padding: '5px 14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+            >
+              ↓ CapCut 프로젝트 다운로드
+            </a>
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: 12, padding: '5px 14px' }}
+              onClick={handleRegenerateCapcut}
+            >
+              ↺ CapCut 프로젝트 재생성
+            </button>
           </div>
         </div>
       )}
