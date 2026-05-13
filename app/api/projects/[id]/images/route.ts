@@ -9,10 +9,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  const files = listFiles(id, 'images').filter((f) => /\.(jpg|png)$/i.test(f));
+  const files = listFiles(id, 'images').filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f));
 
   const images = files.map((filename) => {
-    const m = filename.match(/^scene_(.+)\.(jpg|png)$/i);
+    const m = filename.match(/^scene_(.+)\.(jpg|jpeg|png|webp)$/i);
     return {
       sceneId: m ? m[1] : filename,
       localPath: `images/${filename}`,

@@ -75,6 +75,7 @@ body {
 .stage-node-active { background: var(--accent); border: 2px solid var(--accent); color: #fff; box-shadow: 0 0 0 4px rgba(99,102,241,0.2); animation: pulse-ring 1.5s ease-in-out infinite; }
 .stage-node-done { background: var(--success); border: 2px solid var(--success); color: #fff; }
 .stage-node-error { background: var(--error); border: 2px solid var(--error); color: #fff; }
+.stage-node-waiting { background: var(--warning); border: 2px solid var(--warning); color: #1a1a1a; }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
