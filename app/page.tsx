@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { Project, PipelineStatus } from '@/lib/types';
 
 function statusBadge(status: PipelineStatus) {
@@ -136,13 +137,11 @@ export default function HomePage() {
             {[...projects].reverse().map(p => {
               const { cls, label } = statusBadge(p.status);
               return (
-                <div
+                <Link
                   key={p.id}
-                  onClick={() => router.push(`/projects/${p.id}`)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => e.key === 'Enter' && router.push(`/projects/${p.id}`)}
+                  href={`/projects/${encodeURIComponent(p.id)}`}
                   style={{
+                    textDecoration: 'none',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -177,7 +176,7 @@ export default function HomePage() {
                       삭제
                     </button>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

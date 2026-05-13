@@ -23,6 +23,20 @@ function copyDirRecursive(src: string, dest: string) {
   }
 }
 
+function replacePathsInDir(dir: string, oldStr: string, newStr: string) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      replacePathsInDir(fullPath, oldStr, newStr);
+    } else if (entry.name.endsWith('.json')) {
+      const raw = fs.readFileSync(fullPath, 'utf-8');
+      if (raw.includes(oldStr)) {
+        fs.writeFileSync(fullPath, raw.split(oldStr).join(newStr));
+      }
+    }
+  }
+}
+
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
@@ -53,14 +67,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // Copy the portable capcut-project into CapCut's directory
   copyDirRecursive(srcDir, destDir);
 
-  // Patch draft_info.json: rewrite bundled media paths from srcDir to destDir
-  const draftInfoPath = path.join(destDir, 'draft_info.json');
-  if (fs.existsSync(draftInfoPath)) {
-    const raw = fs.readFileSync(draftInfoPath, 'utf-8');
-    // srcDir paths like /…/capcut-project/videos/… → destDir paths
-    const patched = raw.split(srcDir).join(destDir);
-    fs.writeFileSync(draftInfoPath, patched);
-  }
+  // Patch all JSON files: rewrite bundled media paths from srcDir to destDir
+  // This covers both root draft_info.json and Timelines/{id}/draft_info.json
+  replacePathsInDir(destDir, srcDir, destDir);
 
   // Patch draft_meta_info.json in the destination with machine-local absolute paths
   const patchedMeta = {
