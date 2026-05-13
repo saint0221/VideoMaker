@@ -35,6 +35,8 @@ export default function HomePage() {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [pickingFolder, setPickingFolder] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [detectMsg, setDetectMsg] = useState('');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -64,6 +66,25 @@ export default function HomePage() {
     refresh();
     return () => window.clearTimeout(timer);
   }, []);
+
+  async function handleDetect() {
+    setDetecting(true);
+    setDetectMsg('');
+    try {
+      const res = await fetch('/api/settings/detect-capcut');
+      const data = await res.json();
+      if (data.path) {
+        setCapcutRoot(data.path);
+        setDetectMsg('✓ 자동 감지 성공');
+      } else {
+        setDetectMsg('CapCut 경로를 찾지 못했습니다. 직접 입력하거나 폴더를 선택해주세요.');
+      }
+    } catch {
+      setDetectMsg('감지 중 오류가 발생했습니다.');
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   async function handlePickFolder() {
     setPickingFolder(true);
@@ -178,7 +199,7 @@ export default function HomePage() {
           <input
             type="text"
             value={capcutRoot}
-            onChange={e => setCapcutRoot(e.target.value)}
+            onChange={e => { setCapcutRoot(e.target.value); setDetectMsg(''); }}
             placeholder="~/Movies/CapCut/User Data/Projects/com.lveditor.draft"
             style={{
               flex: 1,
@@ -195,6 +216,15 @@ export default function HomePage() {
           <button
             type="button"
             className="btn btn-outline"
+            onClick={handleDetect}
+            disabled={detecting}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            {detecting ? '감지 중…' : '자동 감지'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
             onClick={handlePickFolder}
             disabled={pickingFolder}
             style={{ whiteSpace: 'nowrap' }}
@@ -205,6 +235,11 @@ export default function HomePage() {
             {settingsSaved ? '저장됨 ✓' : '저장'}
           </button>
         </form>
+        {detectMsg && (
+          <p style={{ color: detectMsg.startsWith('✓') ? 'var(--success)' : 'var(--text-muted)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>
+            {detectMsg}
+          </p>
+        )}
         {settingsError && (
           <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>
             {settingsError}
