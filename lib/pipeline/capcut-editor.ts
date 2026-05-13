@@ -760,7 +760,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     });
   }
 
-  // Full timeline content (draft_content.json format)
+  // Full timeline content (draft_info.json)
   const timelineContent = {
     id: draftId,
     version: 360000,
@@ -771,7 +771,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     update_time: nowSec,
     fps: 30.0,
     is_drop_frame_timecode: false,
-    color_space: 0,
+    color_space: -1,
     config: {
       video_mute: false,
       record_audio_last_index: 1,
@@ -832,7 +832,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     mutable_config: null,
     cover: null,
     retouch_cover: null,
-    extra_info: '',
+    extra_info: null,
     relationships: [],
     render_index_track_mode_on: true,
     free_render_index_mode_on: false,
@@ -864,43 +864,56 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     },
   };
 
-  // Minimal project info (draft_info.json)
-  const draftInfo = {
-    id: draftId,
-    name: draftName,
-    draft_type: 'video',
-    fps: 30.0,
-    canvas_config: { ratio: 'original', width: 1920, height: 1080, background: null },
-    create_time: nowSec,
-    update_time: nowSec,
-    duration: totalDuration,
-    path: capcutDir,
-  };
-
   // CapCut project registry entry (draft_meta_info.json)
   const draftMeta = {
     cloud_draft_cover: false,
     cloud_draft_sync: false,
+    cloud_package_completed_time: '',
+    draft_cloud_capcut_purchase_info: '',
     draft_cloud_last_action_download: false,
+    draft_cloud_package_type: '',
     draft_cloud_purchase_info: '',
     draft_cloud_template_id: '',
     draft_cloud_tutorial_info: '',
     draft_cloud_videocut_purchase_info: '',
-    draft_cover: '',
+    draft_cover: 'draft_cover.jpg',
+    draft_deeplink_url: '',
+    draft_enterprise_info: {
+      draft_enterprise_extra: '',
+      draft_enterprise_id: '',
+      draft_enterprise_name: '',
+      enterprise_material: [],
+    },
     draft_fold_path: capcutDir,
     draft_id: draftId,
+    draft_is_ae_produce: false,
+    draft_is_ai_packaging_used: false,
     draft_is_ai_shorts: false,
+    draft_is_ai_translate: false,
+    draft_is_article_video_draft: false,
     draft_is_cloud_temp_draft: false,
+    draft_is_from_deeplink: 'false',
     draft_is_invisible: false,
     draft_is_web_article_video: false,
-    draft_json_file: path.join(capcutDir, 'draft_content.json'),
+    draft_materials: [
+      { type: 0, value: [] },
+      { type: 1, value: [] },
+      { type: 2, value: [] },
+      { type: 3, value: [] },
+      { type: 6, value: [] },
+      { type: 7, value: [] },
+      { type: 8, value: [] },
+    ],
+    draft_materials_copied_info: [],
     draft_name: draftName,
+    draft_need_rename_folder: false,
     draft_new_version: '',
+    draft_removable_storage_device: '',
     draft_root_path: capcutRoot,
-    draft_timeline_materials_size: 0,
+    draft_segment_extra_info: [],
+    draft_timeline_materials_size_: 0,
     draft_type: '',
     draft_web_article_video_enter_from: '',
-    streaming_edit_draft_ready: true,
     tm_draft_cloud_completed: '',
     tm_draft_cloud_entry_id: -1,
     tm_draft_cloud_modified: 0,
@@ -932,12 +945,8 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   // Write all project files
   fs.writeFileSync(
-    path.join(capcutDir, 'draft_content.json'),
-    JSON.stringify(timelineContent, null, 2)
-  );
-  fs.writeFileSync(
     path.join(capcutDir, 'draft_info.json'),
-    JSON.stringify(draftInfo, null, 2)
+    JSON.stringify(timelineContent, null, 2)
   );
   fs.writeFileSync(
     path.join(capcutDir, 'draft_meta_info.json'),
@@ -980,14 +989,14 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
         draft_cloud_template_id: '',
         draft_cloud_tutorial_info: '',
         draft_cloud_videocut_purchase_info: '',
-        draft_cover: '',
+        draft_cover: 'draft_cover.jpg',
         draft_fold_path: capcutDir,
         draft_id: draftId,
         draft_is_ai_shorts: false,
         draft_is_cloud_temp_draft: false,
         draft_is_invisible: false,
         draft_is_web_article_video: false,
-        draft_json_file: path.join(capcutDir, 'draft_content.json'),
+        draft_json_file: path.join(capcutDir, 'draft_info.json'),
         draft_name: draftName,
         draft_new_version: '',
         draft_root_path: capcutRoot,
