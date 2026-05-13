@@ -19,7 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       await runCapcutEditor(id);
       updateStatus(id, 'completed');
       emit(id, { type: 'status', status: 'completed' });
-      emit(id, { type: 'log', message: '🎬 CapCut 프로젝트 재생성 완료! capcut-project/ 폴더를 CapCut에서 임포트하세요.' });
+      emit(id, { type: 'log', message: '🎬 CapCut 프로젝트 재생성 완료! CapCut을 재시작하면 프로젝트 목록에 자동으로 나타납니다.' });
       emit(id, { type: 'done' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

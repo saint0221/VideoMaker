@@ -263,7 +263,7 @@ export async function continueFromImages(projectId: string) {
 
     updateStatus(projectId, 'completed');
     emit(projectId, { type: 'status', status: 'completed' });
-    emit(projectId, { type: 'log', message: '🎬 모든 단계 완료! capcut-project/ 폴더를 CapCut에서 임포트하세요.' });
+    emit(projectId, { type: 'log', message: '🎬 모든 단계 완료! CapCut을 재시작하면 프로젝트 목록에 자동으로 나타납니다.' });
     emit(projectId, { type: 'done' });
   } catch (err) {
     handleError(projectId, err);
