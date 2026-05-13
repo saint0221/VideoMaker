@@ -574,26 +574,12 @@ interface SceneAsset {
   duration: number;  // microseconds, audio-driven
 }
 
-const CAPCUT_ROOT_META = '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft/root_meta_info.json';
-const CAPCUT_ROOT_DEFAULT = '/Users/hongss/Movies/CapCut/User Data/Projects/com.lveditor.draft';
-
-function getCapcutRoot(): string {
-  if (fs.existsSync(CAPCUT_ROOT_META)) {
-    try {
-      const m = JSON.parse(fs.readFileSync(CAPCUT_ROOT_META, 'utf-8'));
-      if (m.root_path) return m.root_path as string;
-    } catch { /* fallback */ }
-  }
-  return CAPCUT_ROOT_DEFAULT;
-}
-
 export async function runCapcutEditor(projectId: string): Promise<void> {
   emit(projectId, { type: 'log', message: '[11단계] CapCut 프로젝트 생성 중...' });
 
   const pDir = projectDir(projectId);
   const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;
-  const capcutRoot = getCapcutRoot();
-  const capcutDir = path.join(capcutRoot, draftName);
+  const capcutDir = path.join(pDir, 'capcut-project');
   fs.mkdirSync(capcutDir, { recursive: true });
 
   const videosDir = path.join(pDir, 'videos');
@@ -884,7 +870,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       draft_enterprise_name: '',
       enterprise_material: [],
     },
-    draft_fold_path: capcutDir,
+    draft_fold_path: '',
     draft_id: draftId,
     draft_is_ae_produce: false,
     draft_is_ai_packaging_used: false,
@@ -909,7 +895,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     draft_need_rename_folder: false,
     draft_new_version: '',
     draft_removable_storage_device: '',
-    draft_root_path: capcutRoot,
+    draft_root_path: '',
     draft_segment_extra_info: [],
     draft_timeline_materials_size_: 0,
     draft_type: '',
@@ -967,70 +953,8 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     JSON.stringify(timelineContent, null, 2)
   );
 
-  // Register in CapCut's root_meta_info.json
-  if (fs.existsSync(CAPCUT_ROOT_META)) {
-    try {
-      const rootMeta = JSON.parse(fs.readFileSync(CAPCUT_ROOT_META, 'utf-8'));
-      const store: object[] = Array.isArray(rootMeta.all_draft_store)
-        ? rootMeta.all_draft_store
-        : [];
-
-      // Remove any previous entry for this project (same fold_path or id)
-      const filtered = store.filter((e: unknown) => {
-        const entry = e as Record<string, unknown>;
-        return entry.draft_fold_path !== capcutDir && entry.draft_id !== draftId;
-      });
-
-      const newEntry = {
-        cloud_draft_cover: false,
-        cloud_draft_sync: false,
-        draft_cloud_last_action_download: false,
-        draft_cloud_purchase_info: '',
-        draft_cloud_template_id: '',
-        draft_cloud_tutorial_info: '',
-        draft_cloud_videocut_purchase_info: '',
-        draft_cover: 'draft_cover.jpg',
-        draft_fold_path: capcutDir,
-        draft_id: draftId,
-        draft_is_ai_shorts: false,
-        draft_is_cloud_temp_draft: false,
-        draft_is_invisible: false,
-        draft_is_web_article_video: false,
-        draft_json_file: path.join(capcutDir, 'draft_info.json'),
-        draft_name: draftName,
-        draft_new_version: '',
-        draft_root_path: capcutRoot,
-        draft_timeline_materials_size: 0,
-        draft_type: '',
-        draft_web_article_video_enter_from: '',
-        streaming_edit_draft_ready: true,
-        tm_draft_cloud_completed: '',
-        tm_draft_cloud_entry_id: -1,
-        tm_draft_cloud_modified: 0,
-        tm_draft_cloud_parent_entry_id: -1,
-        tm_draft_cloud_space_id: -1,
-        tm_draft_cloud_user_id: -1,
-        tm_draft_create: nowUs,
-        tm_draft_modified: nowUs,
-        tm_draft_removed: 0,
-        tm_duration: totalDuration,
-      };
-
-      filtered.push(newEntry);
-      rootMeta.all_draft_store = filtered;
-      rootMeta.draft_ids = typeof rootMeta.draft_ids === 'number'
-        ? rootMeta.draft_ids + 1
-        : filtered.length;
-
-      fs.writeFileSync(CAPCUT_ROOT_META, JSON.stringify(rootMeta, null, 2));
-      emit(projectId, { type: 'log', message: '✅ root_meta_info.json 등록 완료' });
-    } catch (e) {
-      emit(projectId, { type: 'log', message: `⚠️ root_meta_info.json 업데이트 실패: ${e}` });
-    }
-  }
-
   emit(projectId, {
     type: 'log',
-    message: `✅ CapCut 프로젝트 생성 완료 — CapCut을 재시작하면 프로젝트 목록에 자동으로 나타납니다 (총 ${(totalDuration / 1_000_000).toFixed(1)}초)`,
+    message: `✅ CapCut 프로젝트 생성 완료 (총 ${(totalDuration / 1_000_000).toFixed(1)}초) — capcut-project 폴더를 CapCut 프로젝트 디렉토리에 복사하세요`,
   });
 }
