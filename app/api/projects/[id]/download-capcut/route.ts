@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  const srcDir = path.join(projectDir(id), 'capcut-project');
+  const srcDir = project.capcutPath ?? path.join(projectDir(id), 'capcut-project');
   if (!fs.existsSync(srcDir)) {
     return NextResponse.json({ error: 'CapCut 프로젝트가 아직 생성되지 않았습니다.' }, { status: 400 });
   }
@@ -69,18 +69,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     fs.writeFileSync(path.join(tmpDir, 'setup.command'), SETUP_SCRIPT, { mode: 0o755 });
 
     const zipPath = path.join(tmpBase, `${folderName}.zip`);
-    execSync(`cd "${tmpBase}" && zip -r "${zipPath}" "${folderName}"`, { stdio: 'pipe' });
+    execSync(`/usr/bin/zip -r "${zipPath}" "${folderName}"`, { cwd: tmpBase, stdio: 'pipe' });
 
     const zipBuffer = fs.readFileSync(zipPath);
 
+    const encodedName = encodeURIComponent(`${folderName}.zip`);
     return new NextResponse(zipBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${folderName}.zip"`,
-        'Content-Length': String(zipBuffer.length),
+        'Content-Disposition': `attachment; filename="capcut-project.zip"; filename*=UTF-8''${encodedName}`,
       },
     });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   } finally {
     fs.rmSync(tmpBase, { recursive: true, force: true });
   }

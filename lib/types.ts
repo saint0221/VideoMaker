@@ -53,6 +53,7 @@ export interface Project {
   youtubeUrls?: string[];
   reviewScore?: number;
   reviewVerdict?: string;
+  capcutPath?: string;
 }
 
 export type SSEEvent =

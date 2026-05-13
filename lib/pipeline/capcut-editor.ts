@@ -1,8 +1,12 @@
 import { emit } from '../events';
-import { projectDir } from '../project';
+import { projectDir, loadProject, saveProject } from '../project';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+
+const HOME = process.env.HOME ?? '/Users/hongss';
+const CAPCUT_ROOT = process.env.CAPCUT_ROOT ?? path.join(HOME, 'Movies/CapCut/User Data/Projects/com.lveditor.draft');
+const CAPCUT_ROOT_META = path.join(CAPCUT_ROOT, 'root_meta_info.json');
 
 // UUIDs in CapCut are UPPERCASE
 function uuid(): string {
@@ -579,17 +583,18 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   const pDir = projectDir(projectId);
   const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;
-  const capcutDir = path.join(pDir, 'capcut-project');
+  const capcutDir = path.join(CAPCUT_ROOT, draftName);
   fs.mkdirSync(capcutDir, { recursive: true });
 
   const videosDir = path.join(pDir, 'videos');
   const audioDir = path.join(pDir, 'audio');
   const subsDir = path.join(pDir, 'subtitles');
 
-  // Bundle media into capcut-project so the folder is self-contained
-  const bundledVideosDir = path.join(capcutDir, 'videos');
-  const bundledAudioDir = path.join(capcutDir, 'audio');
-  const bundledSubsDir = path.join(capcutDir, 'subtitles');
+  // Bundle media under Resources/ to match CapCut's expected folder structure
+  const resourcesDir = path.join(capcutDir, 'Resources');
+  const bundledVideosDir = path.join(resourcesDir, 'videos');
+  const bundledAudioDir = path.join(resourcesDir, 'audio');
+  const bundledSubsDir = path.join(resourcesDir, 'subtitles');
   fs.mkdirSync(bundledVideosDir, { recursive: true });
   fs.mkdirSync(bundledAudioDir, { recursive: true });
   fs.mkdirSync(bundledSubsDir, { recursive: true });
@@ -700,7 +705,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     if (clipOffset < s.duration && lastVideoFile) {
       const gap = s.duration - clipOffset;
       const freezeName = path.basename(lastVideoFile, '.mp4') + '_freeze.jpg';
-      const freezePath = path.join(capcutDir, freezeName);
+      const freezePath = path.join(resourcesDir, freezeName);
       if (extractLastFrame(lastVideoFile, freezePath)) {
         const freezeId = uuid();
         videoMaterials.push(makeVideoMaterial(freezeId, freezePath, gap, true));
@@ -774,8 +779,9 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   }
 
   // Full timeline content (draft_info.json)
+  // id must match timelineId so CapCut can resolve Timelines/{timelineId}/draft_info.json
   const timelineContent = {
-    id: draftId,
+    id: timelineId,
     version: 360000,
     new_version: '167.0.0',
     name: draftName,
@@ -897,7 +903,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       draft_enterprise_name: '',
       enterprise_material: [],
     },
-    draft_fold_path: '',
+    draft_fold_path: capcutDir,
     draft_id: draftId,
     draft_is_ae_produce: false,
     draft_is_ai_packaging_used: false,
@@ -922,7 +928,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     draft_need_rename_folder: false,
     draft_new_version: '',
     draft_removable_storage_device: '',
-    draft_root_path: '',
+    draft_root_path: CAPCUT_ROOT,
     draft_segment_extra_info: [],
     draft_timeline_materials_size_: 0,
     draft_type: '',
@@ -980,8 +986,119 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     JSON.stringify(timelineContent, null, 2)
   );
 
+  // ---- Boilerplate files matching CapCut's expected project structure ----
+
+  const ATTACHMENT_EDITING = JSON.stringify({ editing_draft: { ai_remove_filter_words: { enter_source: '', right_id: '' }, ai_shorts_info: { report_params: '', type: 0 }, cover_extra_info: { draft_id: '', position: 0, select_segment_id: '', select_segment_source_start: 0, select_segment_target_start: 0, type: 1 }, crop_info_extra: { crop_mirror_type: 0, crop_rotate: 0.0, crop_rotate_total: 0.0 }, digital_human_template_to_video_info: { has_upload_material: false, template_type: 0 }, draft_used_recommend_function: '', edit_type: 0, eye_correct_enabled_multi_face_time: 0, has_adjusted_render_layer: false, image_ai_chat_info: { before_chat_edit: false, draft_modify_time: 0, keyword_content: '', keyword_type: '', message_id: '', model_name: '', need_restore: false, picture_id: '', prompt_content: '', prompt_from: '', sugs_info: [] }, is_open_expand_player: false, is_template_text_ai_generate: false, is_use_adjust: false, is_use_ai_expand: false, is_use_ai_remove: false, is_use_ai_video: false, is_use_audio_separation: false, is_use_chroma_key: false, is_use_curve_speed: false, is_use_digital_human: false, is_use_edit_multi_camera: false, is_use_lip_sync: false, is_use_lock_object: false, is_use_loudness_unify: false, is_use_noise_reduction: false, is_use_one_click_beauty: false, is_use_one_click_ultra_hd: false, is_use_retouch_face: false, is_use_smart_adjust_color: false, is_use_smart_body_beautify: false, is_use_smart_motion: false, is_use_subtitle_recognition: false, is_use_text_to_audio: false, material_edit_session: { material_edit_info: [], session_id: '', session_time: 0 }, paste_segment_list: [], profile_entrance_type: '', publish_enter_from: '', publish_type: '', single_function_type: 0, text_convert_case_types: [], version: '1.0.0', video_recording_create_draft: '' } });
+
+  const ATTACHMENT_PC_COMMON = JSON.stringify({ ai_packaging_infos: [], ai_packaging_report_info: { caption_id_list: [], commercial_material: '', material_source: '', method: '', page_from: '', style: '', task_id: '', text_style: '', tos_id: '', video_category: '' }, broll: { ai_packaging_infos: [], ai_packaging_report_info: { caption_id_list: [], commercial_material: '', material_source: '', method: '', page_from: '', style: '', task_id: '', text_style: '', tos_id: '', video_category: '' } }, commercial_music_category_ids: [], pc_feature_flag: 0, recognize_tasks: [], reference_lines_config: { horizontal_lines: [], is_lock: false, is_visible: false, vertical_lines: [] }, safe_area_type: 0, template_item_infos: [], unlock_template_ids: [] });
+
+  const commonAttachmentFiles: Record<string, string> = {
+    'attachment_action_scene.json': JSON.stringify({ action_scene: { removed_segments: [], segment_infos: [] } }),
+    'attachment_gen_ai_info.json': JSON.stringify({ gen_ai: { ai_func_config: { ai_common_configs: [], ai_effect_configs: [], ai_func_list: [], aigc_generation_configs: [] }, cc_agent_info: { agent_stringent_section_id_list: [], agent_stringent_used_tool_list: [], is_agent_stringent_used: false, is_agent_used: false, tool_list: [] }, id: '', scene: '', version: '1.0.0' } }),
+    'attachment_pc_timeline.json': JSON.stringify({ reference_lines_config: { horizontal_lines: [], is_lock: false, is_visible: false, vertical_lines: [] }, safe_area_type: 0 }),
+    'attachment_plugin_draft.json': JSON.stringify({ plugin_draft: { plugin_segments: [], version: '1.0.0' } }),
+    'attachment_script_video.json': JSON.stringify({ script_video: { attachment_valid: false, language: '', overdub_recover: [], overdub_sentence_ids: [], parts: [], sync_subtitle: false, translate_segments: [], translate_type: '', version: '1.0.0' } }),
+  };
+
+  // Root-level boilerplate files
+  fs.writeFileSync(path.join(capcutDir, 'draft_agency_config.json'), JSON.stringify({ is_auto_agency_enabled: false, is_auto_agency_popup: false, is_single_agency_mode: false, marterials: null, use_converter: false, video_resolution: 720 }));
+  fs.writeFileSync(path.join(capcutDir, 'draft_biz_config.json'), '');
+  fs.writeFileSync(path.join(capcutDir, 'draft_virtual_store.json'), JSON.stringify({ draft_materials: [], draft_virtual_store: [] }));
+  fs.writeFileSync(path.join(capcutDir, 'key_value.json'), JSON.stringify({}));
+  fs.writeFileSync(path.join(capcutDir, 'timeline_layout.json'), JSON.stringify({ dockItems: [{ dockIndex: 0, ratio: 1, timelineIds: [timelineId], timelineNames: ['타임라인 01'] }], layoutOrientation: 1 }));
+  fs.writeFileSync(path.join(capcutDir, 'performance_opt_info.json'), JSON.stringify({ manual_cancle_precombine_segs: null, need_auto_precombine_segs: null }));
+  fs.writeFileSync(path.join(capcutDir, 'attachment_editing.json'), ATTACHMENT_EDITING);
+  fs.writeFileSync(path.join(capcutDir, 'attachment_pc_common.json'), ATTACHMENT_PC_COMMON);
+
+  // Root-level common_attachment/
+  const rootCommonAttachDir = path.join(capcutDir, 'common_attachment');
+  fs.mkdirSync(rootCommonAttachDir, { recursive: true });
+  for (const [name, content] of Object.entries(commonAttachmentFiles)) {
+    fs.writeFileSync(path.join(rootCommonAttachDir, name), content);
+  }
+
+  // Timeline-level boilerplate files
+  fs.writeFileSync(path.join(timelineSubDir, 'attachment_editing.json'), ATTACHMENT_EDITING);
+  fs.writeFileSync(path.join(timelineSubDir, 'attachment_pc_common.json'), ATTACHMENT_PC_COMMON);
+
+  // Timeline-level common_attachment/
+  const timelineCommonAttachDir = path.join(timelineSubDir, 'common_attachment');
+  fs.mkdirSync(timelineCommonAttachDir, { recursive: true });
+  for (const [name, content] of Object.entries(commonAttachmentFiles)) {
+    fs.writeFileSync(path.join(timelineCommonAttachDir, name), content);
+  }
+
+  // Empty directories CapCut expects
+  for (const emptyDir of ['adjust_mask', 'smart_crop', 'matting', 'qr_upload', 'subdraft', 'draft_settings']) {
+    fs.mkdirSync(path.join(capcutDir, emptyDir), { recursive: true });
+  }
+
+  // Register in CapCut's root_meta_info.json
+  let rootMeta: { all_draft_store: unknown[]; draft_ids: number; root_path: string } = {
+    all_draft_store: [],
+    draft_ids: 1,
+    root_path: CAPCUT_ROOT,
+  };
+  if (fs.existsSync(CAPCUT_ROOT_META)) {
+    try {
+      rootMeta = JSON.parse(fs.readFileSync(CAPCUT_ROOT_META, 'utf-8'));
+    } catch {
+      // keep default if parse fails
+    }
+  }
+
+  const entries = rootMeta.all_draft_store as Record<string, unknown>[];
+  const existingIdx = entries.findIndex((e) => e.draft_id === draftId);
+  const registryEntry: Record<string, unknown> = {
+    draft_cloud_capcut_purchase_info: '',
+    draft_cloud_last_action_download: false,
+    draft_cloud_package_type: '',
+    draft_cloud_purchase_info: '',
+    draft_cloud_template_id: '',
+    draft_cloud_tutorial_info: '',
+    draft_cloud_videocut_purchase_info: '',
+    draft_cover: 'draft_cover.jpg',
+    draft_fold_path: capcutDir,
+    draft_id: draftId,
+    draft_is_ai_shorts: false,
+    draft_is_invisible: false,
+    draft_json_file: path.join(capcutDir, 'draft_info.json'),
+    draft_name: draftName,
+    draft_new_version: '',
+    draft_removable_storage_device: '',
+    draft_root_path: CAPCUT_ROOT,
+    draft_timeline_materials_size: 0,
+    draft_type: '',
+    streaming_edit_draft_ready: false,
+    tm_draft_cloud_completed: '',
+    tm_draft_cloud_entry_id: -1,
+    tm_draft_cloud_modified: 0,
+    tm_draft_cloud_parent_entry_id: -1,
+    tm_draft_cloud_space_id: -1,
+    tm_draft_cloud_user_id: -1,
+    tm_draft_create: nowUs,
+    tm_draft_modified: nowUs,
+    tm_draft_removed: 0,
+    tm_duration: totalDuration,
+  };
+
+  if (existingIdx >= 0) {
+    entries[existingIdx] = registryEntry;
+  } else {
+    entries.unshift(registryEntry);
+    rootMeta.draft_ids = (rootMeta.draft_ids as number) + 1;
+  }
+
+  fs.writeFileSync(CAPCUT_ROOT_META, JSON.stringify(rootMeta, null, 2));
+
+  // Save the CapCut project path to project state
+  const project = loadProject(projectId);
+  if (project) {
+    saveProject({ ...project, capcutPath: capcutDir });
+  }
+
   emit(projectId, {
     type: 'log',
-    message: `✅ CapCut 프로젝트 생성 완료 (총 ${(totalDuration / 1_000_000).toFixed(1)}초) — capcut-project 폴더를 CapCut 프로젝트 디렉토리에 복사하세요`,
+    message: `✅ CapCut 프로젝트 생성 완료 (총 ${(totalDuration / 1_000_000).toFixed(1)}초) — CapCut을 재시작하면 목록에 자동 등록됩니다`,
   });
 }
