@@ -1,6 +1,7 @@
 import { emit } from '../events';
 import { projectDir, loadProject, saveProject } from '../project';
 import { loadSettings } from '../settings';
+import { runClaude } from './claude-runner';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -75,6 +76,101 @@ function parseSrt(content: string): SrtEntry[] {
     });
   }
   return entries;
+}
+
+function extractSlotId(videoFile: string): string | null {
+  const m = path.basename(videoFile).match(/^scene_(\d+-[A-Za-z]+)\.mp4$/i);
+  return m ? m[1] : null;
+}
+
+function parseSlotDescriptions(imagePromptsMd: string, sceneId: string): Array<{ slotId: string; desc: string }> {
+  const results: Array<{ slotId: string; desc: string }> = [];
+  const sections = imagePromptsMd.split(/^## SCENE /m);
+  for (const section of sections) {
+    const idMatch = section.match(/^(\d+-[A-Za-z]+)\n/);
+    if (!idMatch) continue;
+    const slotId = idMatch[1];
+    if (!slotId.startsWith(sceneId + '-')) continue;
+    const korMatch = section.match(/\*\*프롬프트 \(한글\)\*\*:\n([\s\S]*?)(?:\n\n\*\*네거티브\*\*|\n\*\*텍스트|---)/);
+    if (korMatch) results.push({ slotId, desc: korMatch[1].trim().substring(0, 150) });
+  }
+  return results;
+}
+
+async function computeSlotTimings(
+  slots: Array<{ slotId: string; desc: string }>,
+  srtEntries: SrtEntry[],
+  totalDuration: number
+): Promise<Map<string, { start: number; end: number }> | null> {
+  if (slots.length === 0 || srtEntries.length === 0) return null;
+
+  const srtText = srtEntries
+    .map((e, i) => `[${i + 1}] ${e.text.replace(/\n/g, ' ')}`)
+    .join('\n');
+  const slotText = slots.map((s, i) => `${i + 1}. ${s.slotId}: ${s.desc}`).join('\n');
+
+  const prompt = `다음은 나레이션 자막 항목과 영상 슬롯 설명입니다.
+각 슬롯이 나레이션의 어느 자막 항목을 커버하는지 연속 범위로 매핑하세요.
+
+## 자막 항목 (번호: 내용)
+${srtText}
+
+## 영상 슬롯 (번호. 슬롯ID: 설명)
+${slotText}
+
+규칙:
+- 모든 자막 항목은 정확히 한 슬롯에 속해야 합니다
+- 슬롯 순서는 유지해야 합니다 (앞 슬롯이 나중 자막을 커버할 수 없음)
+- 각 슬롯은 최소 1개의 자막 항목을 가져야 합니다
+- 첫 슬롯은 항목 1부터 시작, 마지막 슬롯은 마지막 항목으로 끝나야 합니다
+
+JSON 형식으로만 응답 (다른 텍스트 없이):
+{"슬롯ID": [시작번호, 끝번호], ...}
+예: {"02-A": [1, 6], "02-B": [7, 8], "02-C": [9, 10]}`;
+
+  let raw: string;
+  try {
+    raw = await runClaude(prompt, { timeoutMs: 60_000 });
+  } catch {
+    return null;
+  }
+
+  let mapping: Record<string, [number, number]>;
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    mapping = JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
+
+  // Validate
+  const n = srtEntries.length;
+  const covered = new Array(n + 1).fill(false);
+  let prevEnd = 0;
+  for (const slot of slots) {
+    const range = mapping[slot.slotId];
+    if (!Array.isArray(range) || range.length !== 2) return null;
+    const [s, e] = range;
+    if (s < 1 || e > n || s > e) return null;
+    if (s <= prevEnd) return null; // not monotone
+    for (let i = s; i <= e; i++) covered[i] = true;
+    prevEnd = e;
+  }
+  for (let i = 1; i <= n; i++) {
+    if (!covered[i]) return null;
+  }
+
+  // Convert to microsecond time ranges
+  const result = new Map<string, { start: number; end: number }>();
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const [startIdx, endIdx] = mapping[slot.slotId];
+    const start = i === 0 ? 0 : srtEntries[startIdx - 1].start;
+    const end = i === slots.length - 1 ? totalDuration : srtEntries[endIdx].start;
+    result.set(slot.slotId, { start, end });
+  }
+  return result;
 }
 
 function makeTextContent(text: string): string {
@@ -665,6 +761,31 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     scenes.push({ id, videoFiles: sceneVideoFiles, audioFile, srtFile, duration });
   }
 
+  // ---- Precompute slot timings for all scenes in parallel ----
+  const imagePromptsPath = path.join(pDir, 'image-prompts.md');
+  const imagePromptsMd = fs.existsSync(imagePromptsPath)
+    ? fs.readFileSync(imagePromptsPath, 'utf-8')
+    : '';
+
+  emit(projectId, { type: 'log', message: '🧠 나레이션-영상 싱크 매핑 계산 중...' });
+
+  const sceneTimingMaps = await Promise.all(
+    scenes.map(async (s) => {
+      if (s.videoFiles.length <= 1 || !s.srtFile) return null;
+      const srtContent = fs.readFileSync(s.srtFile, 'utf-8');
+      const srtEntries = parseSrt(srtContent);
+      if (srtEntries.length === 0) return null;
+      const videoSlotIds = new Set(
+        s.videoFiles.map(extractSlotId).filter((id): id is string => id !== null)
+      );
+      const slots = parseSlotDescriptions(imagePromptsMd, s.id).filter((sl) =>
+        videoSlotIds.has(sl.slotId)
+      );
+      if (slots.length === 0) return null;
+      return computeSlotTimings(slots, srtEntries, s.duration);
+    })
+  );
+
   // ---- Build track content ----
   const videoMaterials: object[] = [];
   const videoSegments: object[] = [];
@@ -680,38 +801,84 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   let timelineOffset = 0;
 
-  for (const s of scenes) {
+  for (let si = 0; si < scenes.length; si++) {
+    const s = scenes[si];
+    const timingMap = sceneTimingMaps[si];
     const sceneStart = timelineOffset;
 
-    // ---- Video segments (equal duration distribution across clips) ----
-    let clipOffset = 0;
-    let lastVideoFile = '';
+    // ---- Video segments ----
     const numClips = s.videoFiles.length;
     const uniformDur = numClips > 0 ? Math.floor(s.duration / numClips) : s.duration;
+    let clipOffset = 0;
+    let lastVideoFile = '';
 
     for (let i = 0; i < s.videoFiles.length; i++) {
       const videoFile = s.videoFiles[i];
       if (clipOffset >= s.duration) break;
+
       const rawDur = getFileDuration(videoFile) || 5_000_000;
       const available = s.duration - clipOffset;
+
+      // Determine target duration for this slot
+      const slotId = extractSlotId(videoFile);
+      const slotTiming = slotId && timingMap ? timingMap.get(slotId) : null;
       const isLast = i === numClips - 1;
-      const targetDur = isLast ? available : uniformDur;
-      const clipDur = Math.min(targetDur, rawDur, available);
-      if (clipDur <= 0) break;
+
+      let targetDur: number;
+      if (slotTiming) {
+        targetDur = slotTiming.end - slotTiming.start;
+      } else {
+        targetDur = isLast ? available : uniformDur;
+      }
+      targetDur = Math.max(targetDur, 1);
 
       const materialId = uuid();
       lastVideoFile = videoFile;
       videoMaterials.push(makeVideoMaterial(materialId, videoFile, rawDur));
-      videoSegments.push(makeVideoSegment(
-        uuid(), materialId,
-        sceneStart + clipOffset, clipDur,
-        0, clipDur,
-        VIDEO_TRACK_IDX
-      ));
-      clipOffset += clipDur;
+
+      if (targetDur <= rawDur) {
+        // Clip covers its slot entirely — play from beginning, trim to targetDur
+        const clipDur = Math.min(targetDur, available);
+        if (clipDur <= 0) break;
+        videoSegments.push(makeVideoSegment(
+          uuid(), materialId,
+          sceneStart + clipOffset, clipDur,
+          0, clipDur,
+          VIDEO_TRACK_IDX
+        ));
+        clipOffset += clipDur;
+      } else {
+        // Slot is longer than clip — play clip then freeze frame
+        const clipDur = Math.min(rawDur, available);
+        if (clipDur <= 0) break;
+        videoSegments.push(makeVideoSegment(
+          uuid(), materialId,
+          sceneStart + clipOffset, clipDur,
+          0, clipDur,
+          VIDEO_TRACK_IDX
+        ));
+        clipOffset += clipDur;
+
+        const freezeDur = Math.min(targetDur - rawDur, s.duration - clipOffset);
+        if (freezeDur > 0) {
+          const freezeName = path.basename(videoFile, '.mp4') + '_freeze.jpg';
+          const freezePath = path.join(resourcesDir, freezeName);
+          if (extractLastFrame(videoFile, freezePath)) {
+            const freezeId = uuid();
+            videoMaterials.push(makeVideoMaterial(freezeId, freezePath, freezeDur, true));
+            videoSegments.push(makeVideoSegment(
+              uuid(), freezeId,
+              sceneStart + clipOffset, freezeDur,
+              0, freezeDur,
+              VIDEO_TRACK_IDX
+            ));
+            clipOffset += freezeDur;
+          }
+        }
+      }
     }
 
-    // Fill gap with freeze frame if video shorter than audio
+    // Fill remaining gap with freeze frame if any
     if (clipOffset < s.duration && lastVideoFile) {
       const gap = s.duration - clipOffset;
       const freezeName = path.basename(lastVideoFile, '.mp4') + '_freeze.jpg';
