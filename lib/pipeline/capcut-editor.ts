@@ -92,7 +92,14 @@ function parseSlotDescriptions(imagePromptsMd: string, sceneId: string): Array<{
     const slotId = idMatch[1];
     if (!slotId.startsWith(sceneId + '-')) continue;
     const korMatch = section.match(/\*\*프롬프트 \(한글\)\*\*:\n([\s\S]*?)(?:\n\n\*\*네거티브\*\*|\n\*\*텍스트|---)/);
-    if (korMatch) results.push({ slotId, desc: korMatch[1].trim().substring(0, 150) });
+    if (!korMatch) continue;
+    let desc = korMatch[1].trim().substring(0, 150);
+    // Include text overlay content so the LLM can match it to the correct narration entries
+    const textContentMatch = section.match(/\*\*텍스트 합성\*\*[^\n]*\n내용:\s*"([^"]+)"/);
+    if (textContentMatch) {
+      desc += ` [텍스트: ${textContentMatch[1].replace(/\\n/g, ' ')}]`;
+    }
+    results.push({ slotId, desc });
   }
   return results;
 }
