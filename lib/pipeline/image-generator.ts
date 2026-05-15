@@ -35,7 +35,7 @@ function parseTextComposite(block: string): TextComposite | undefined {
   const sizeMatch = block.match(/크기:\s*(\d+)px/);
 
   return {
-    content: contentMatch[1],
+    content: contentMatch[1].replace(/\\n/g, '\n'),
     font: fontMatch?.[1] ?? 'sans-serif',
     x: posMatch ? parseFloat(posMatch[1]) : 0.5,
     y: posMatch ? parseFloat(posMatch[2]) : 0.85,
@@ -54,18 +54,27 @@ async function compositeText(imagePath: string, tc: TextComposite): Promise<void
 
   const x = Math.round(tc.x * w);
   const y = Math.round(tc.y * h);
-  const escaped = tc.content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  const lines = tc.content.split('\n');
+  const lineHeight = Math.round(tc.size * 1.3);
+  const totalHeight = lineHeight * (lines.length - 1);
+  const startY = y - Math.round(totalHeight / 2);
+
+  const escape = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const tspans = lines
+    .map((line, i) =>
+      `<tspan x="${x}" y="${startY + i * lineHeight}">${escape(line)}</tspan>`
+    )
+    .join('');
 
   const svg = Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
-    `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle"` +
+    `<text text-anchor="middle" dominant-baseline="middle"` +
     ` font-family="${tc.font}, AppleSDGothicNeo-Bold, NanumGothic, sans-serif"` +
     ` font-size="${tc.size}" fill="${tc.color}"` +
     ` stroke="${tc.strokeColor}" stroke-width="${tc.strokeWidth}" paint-order="stroke"` +
-    `>${escaped}</text></svg>`
+    `>${tspans}</text></svg>`
   );
 
   const tmpPath = imagePath + '.tmp.jpg';
