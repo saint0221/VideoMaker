@@ -129,6 +129,29 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
 
   emit(projectId, { type: 'log', message: `[10단계] 영상 생성 (${totalClips}개 클립)` });
 
+  let videoToGenerate = 0;
+  let videoSkipped = 0;
+  for (const [sceneNum, sceneImages] of sceneGroups) {
+    for (let i = 0; i < sceneImages.length; i++) {
+      const suffix = String.fromCharCode(65 + i);
+      const fileName = `scene_${sceneNum}-${suffix}.mp4`;
+      if (fs.existsSync(path.join(videosDir, fileName))) {
+        videoSkipped++;
+      } else {
+        videoToGenerate++;
+      }
+    }
+  }
+  const COST_PER_CLIP = 0.28;
+  emit(projectId, {
+    type: 'cost',
+    stage: 'video',
+    toGenerate: videoToGenerate,
+    skipped: videoSkipped,
+    costPerUnit: COST_PER_CLIP,
+    totalCost: +(videoToGenerate * COST_PER_CLIP).toFixed(4),
+  });
+
   for (const [sceneNum, sceneImages] of [...sceneGroups.entries()].sort()) {
     // 클립 수 = 계획된 이미지 슬롯 수; 타임라인 채우기는 CapCut 편집기가 담당
     const totalSlots = sceneImages.length;

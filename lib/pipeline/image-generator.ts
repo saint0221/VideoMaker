@@ -166,6 +166,20 @@ export async function runImageGenerator(
 
   emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬)` });
 
+  const alreadyDoneImages = scenes.filter((s) =>
+    fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
+  ).length;
+  const COST_PER_IMAGE = 0.025;
+  const imagesToGenerate = scenes.length - alreadyDoneImages;
+  emit(projectId, {
+    type: 'cost',
+    stage: 'image',
+    toGenerate: imagesToGenerate,
+    skipped: alreadyDoneImages,
+    costPerUnit: COST_PER_IMAGE,
+    totalCost: +(imagesToGenerate * COST_PER_IMAGE).toFixed(4),
+  });
+
   for (const scene of scenes) {
     const localPath = `images/scene_${scene.id}.jpg`;
     const absPath = path.join(projectDir(projectId), localPath);

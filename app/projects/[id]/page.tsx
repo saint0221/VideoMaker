@@ -320,7 +320,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const router = useRouter();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
+  type CostEntry = { kind: 'cost'; stage: 'image' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
+  type LogEntry = string | CostEntry;
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
   const [reviewData, setReviewData] = useState<{ score: number; verdict: string } | null>(null);
   const [generatedImages, setGeneratedImages] = useState<Array<{ sceneId: string; localPath: string }>>([]);
@@ -399,6 +401,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         } else if (event.type === 'log') {
           lastLogTimeRef.current = Date.now();
           setLogs(prev => [...prev, event.message]);
+        } else if (event.type === 'cost') {
+          setLogs(prev => [...prev, { kind: 'cost', stage: event.stage, toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost }]);
         } else if (event.type === 'concepts') {
           setConcepts(event.concepts);
         } else if (event.type === 'review') {
@@ -718,11 +722,39 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             {logs.length === 0 && (
               <span style={{ color: 'var(--border)' }}>로그 대기중…</span>
             )}
-            {logs.map((log, i) => (
-              <div key={i} style={{ color: log.startsWith('⚠️') ? 'var(--error)' : 'var(--text-muted)' }}>
-                {log}
-              </div>
-            ))}
+            {logs.map((log, i) => {
+              if (typeof log !== 'string') {
+                const label = log.stage === 'image' ? '🖼️ 이미지 생성' : '🎬 영상 클립 생성';
+                const unit = log.stage === 'image' ? '이미지' : '클립';
+                return (
+                  <div key={i} style={{
+                    margin: '6px 0',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    background: 'rgba(124,111,255,0.08)',
+                    border: '1px solid rgba(124,111,255,0.25)',
+                    fontSize: 12,
+                  }}>
+                    <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 3 }}>
+                      💰 {label} 예상 비용
+                    </div>
+                    <div style={{ color: 'var(--text)' }}>
+                      생성 예정: {log.toGenerate}{unit} × ${log.costPerUnit.toFixed(3)} = <strong>${log.totalCost.toFixed(3)}</strong>
+                    </div>
+                    {log.skipped > 0 && (
+                      <div style={{ color: 'var(--text-muted)' }}>
+                        이미 완료: {log.skipped}{unit} (건너뜀)
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div key={i} style={{ color: log.startsWith('⚠️') ? 'var(--error)' : 'var(--text-muted)' }}>
+                  {log}
+                </div>
+              );
+            })}
             {sseActive && silentSec >= 20 && (
               <div style={{
                 color: 'var(--warning)',
