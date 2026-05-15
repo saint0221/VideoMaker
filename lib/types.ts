@@ -61,6 +61,7 @@ export interface Project {
 export type SSEEvent =
   | { type: 'status'; status: PipelineStatus }
   | { type: 'log'; message: string }
+  | { type: 'cost'; stage: 'image' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number }
   | { type: 'concepts'; concepts: Concept[] }
   | { type: 'review'; score: number; verdict: string }
   | { type: 'image'; sceneId: string; localPath: string }
