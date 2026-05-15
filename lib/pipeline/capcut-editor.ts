@@ -83,7 +83,26 @@ function extractSlotId(videoFile: string): string | null {
   return m ? m[1] : null;
 }
 
-function parseSlotDescriptions(imagePromptsMd: string, sceneId: string): Array<{ slotId: string; desc: string }> {
+function parseSlotNarrations(sceneDesignMd: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const slotPattern = /### 슬롯 (\d+-[A-Za-z]+) \([^)]+\)([\s\S]*?)(?=\n### 슬롯 |\n## |$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = slotPattern.exec(sceneDesignMd)) !== null) {
+    const slotId = m[1];
+    const body = m[2];
+    const captionMatch = body.match(/- 자막:\s*"([^"]+)"/);
+    if (captionMatch) {
+      map.set(slotId, captionMatch[1]);
+    }
+  }
+  return map;
+}
+
+function parseSlotDescriptions(
+  imagePromptsMd: string,
+  sceneId: string,
+  narrations: Map<string, string>
+): Array<{ slotId: string; desc: string }> {
   const results: Array<{ slotId: string; desc: string }> = [];
   const sections = imagePromptsMd.split(/^## SCENE /m);
   for (const section of sections) {
@@ -91,10 +110,16 @@ function parseSlotDescriptions(imagePromptsMd: string, sceneId: string): Array<{
     if (!idMatch) continue;
     const slotId = idMatch[1];
     if (!slotId.startsWith(sceneId + '-')) continue;
+    // Prefer narration from scene-design.md — it directly matches SRT content
+    const narration = narrations.get(slotId);
+    if (narration) {
+      results.push({ slotId, desc: narration });
+      continue;
+    }
+    // Fallback: use Korean image prompt description
     const korMatch = section.match(/\*\*프롬프트 \(한글\)\*\*:\n([\s\S]*?)(?:\n\n\*\*네거티브\*\*|\n\*\*텍스트|---)/);
     if (!korMatch) continue;
     let desc = korMatch[1].trim().substring(0, 150);
-    // Include text overlay content so the LLM can match it to the correct narration entries
     const textContentMatch = section.match(/\*\*텍스트 합성\*\*[^\n]*\n내용:\s*"([^"]+)"/);
     if (textContentMatch) {
       desc += ` [텍스트: ${textContentMatch[1].replace(/\\n/g, ' ')}]`;
@@ -774,6 +799,11 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     ? fs.readFileSync(imagePromptsPath, 'utf-8')
     : '';
 
+  const sceneDesignPath = path.join(pDir, 'scene-design.md');
+  const slotNarrations = fs.existsSync(sceneDesignPath)
+    ? parseSlotNarrations(fs.readFileSync(sceneDesignPath, 'utf-8'))
+    : new Map<string, string>();
+
   emit(projectId, { type: 'log', message: '🧠 나레이션-영상 싱크 매핑 계산 중...' });
 
   // Planned slots per scene: intersect image-prompts.md slots with actual video files
@@ -781,7 +811,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     const videoSlotIds = new Set(
       s.videoFiles.map(extractSlotId).filter((id): id is string => id !== null)
     );
-    const slots = parseSlotDescriptions(imagePromptsMd, s.id).filter((sl) =>
+    const slots = parseSlotDescriptions(imagePromptsMd, s.id, slotNarrations).filter((sl) =>
       videoSlotIds.has(sl.slotId)
     );
     return { slots, plannedIds: new Set(slots.map((sl) => sl.slotId)) };
