@@ -769,19 +769,24 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   emit(projectId, { type: 'log', message: '🧠 나레이션-영상 싱크 매핑 계산 중...' });
 
+  // Planned slots per scene: intersect image-prompts.md slots with actual video files
+  const sceneSlotSets = scenes.map((s) => {
+    const videoSlotIds = new Set(
+      s.videoFiles.map(extractSlotId).filter((id): id is string => id !== null)
+    );
+    const slots = parseSlotDescriptions(imagePromptsMd, s.id).filter((sl) =>
+      videoSlotIds.has(sl.slotId)
+    );
+    return { slots, plannedIds: new Set(slots.map((sl) => sl.slotId)) };
+  });
+
   const sceneTimingMaps = await Promise.all(
-    scenes.map(async (s) => {
-      if (s.videoFiles.length <= 1 || !s.srtFile) return null;
+    scenes.map(async (s, si) => {
+      const { slots } = sceneSlotSets[si];
+      if (slots.length <= 1 || !s.srtFile) return null;
       const srtContent = fs.readFileSync(s.srtFile, 'utf-8');
       const srtEntries = parseSrt(srtContent);
       if (srtEntries.length === 0) return null;
-      const videoSlotIds = new Set(
-        s.videoFiles.map(extractSlotId).filter((id): id is string => id !== null)
-      );
-      const slots = parseSlotDescriptions(imagePromptsMd, s.id).filter((sl) =>
-        videoSlotIds.has(sl.slotId)
-      );
-      if (slots.length === 0) return null;
       return computeSlotTimings(slots, srtEntries, s.duration);
     })
   );
@@ -804,16 +809,25 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   for (let si = 0; si < scenes.length; si++) {
     const s = scenes[si];
     const timingMap = sceneTimingMaps[si];
+    const { plannedIds } = sceneSlotSets[si];
     const sceneStart = timelineOffset;
 
     // ---- Video segments ----
-    const numClips = s.videoFiles.length;
-    const uniformDur = numClips > 0 ? Math.floor(s.duration / numClips) : s.duration;
+    // Only place planned clips; skip extra generated clips beyond planned slots
+    const plannedVideoFiles =
+      plannedIds.size > 0
+        ? s.videoFiles.filter((f) => {
+            const id = extractSlotId(f);
+            return !id || plannedIds.has(id);
+          })
+        : s.videoFiles;
+    const numPlanned = plannedVideoFiles.length;
+    const uniformDur = numPlanned > 0 ? Math.floor(s.duration / numPlanned) : s.duration;
     let clipOffset = 0;
     let lastVideoFile = '';
 
-    for (let i = 0; i < s.videoFiles.length; i++) {
-      const videoFile = s.videoFiles[i];
+    for (let i = 0; i < plannedVideoFiles.length; i++) {
+      const videoFile = plannedVideoFiles[i];
       if (clipOffset >= s.duration) break;
 
       const rawDur = getFileDuration(videoFile) || 5_000_000;
@@ -822,7 +836,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       // Determine target duration for this slot
       const slotId = extractSlotId(videoFile);
       const slotTiming = slotId && timingMap ? timingMap.get(slotId) : null;
-      const isLast = i === numClips - 1;
+      const isLast = i === numPlanned - 1;
 
       let targetDur: number;
       if (slotTiming) {
