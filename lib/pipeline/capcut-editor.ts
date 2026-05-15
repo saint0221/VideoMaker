@@ -683,15 +683,20 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   for (const s of scenes) {
     const sceneStart = timelineOffset;
 
-    // ---- Video segments (trimmed to scene duration = audio duration) ----
+    // ---- Video segments (equal duration distribution across clips) ----
     let clipOffset = 0;
     let lastVideoFile = '';
+    const numClips = s.videoFiles.length;
+    const uniformDur = numClips > 0 ? Math.floor(s.duration / numClips) : s.duration;
 
-    for (const videoFile of s.videoFiles) {
+    for (let i = 0; i < s.videoFiles.length; i++) {
+      const videoFile = s.videoFiles[i];
       if (clipOffset >= s.duration) break;
       const rawDur = getFileDuration(videoFile) || 5_000_000;
       const available = s.duration - clipOffset;
-      const clipDur = Math.min(rawDur, available);
+      const isLast = i === numClips - 1;
+      const targetDur = isLast ? available : uniformDur;
+      const clipDur = Math.min(targetDur, rawDur, available);
       if (clipDur <= 0) break;
 
       const materialId = uuid();
