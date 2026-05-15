@@ -3,19 +3,7 @@ import { writeFileBinary, projectFile } from '../project';
 import { uploadBufferToFal } from './utils';
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 
-function getFileDuration(filePath: string): number {
-  try {
-    const out = execSync(
-      `ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}"`,
-      { encoding: 'utf-8' }
-    ).trim();
-    return Math.round(parseFloat(out) * 1_000_000);
-  } catch {
-    return 0;
-  }
-}
 
 interface KlingQueueResult {
   request_id: string;
@@ -121,7 +109,6 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     return;
   }
 
-  const audioDir = projectFile(projectId, 'audio');
   const videosDir = projectFile(projectId, 'videos');
 
   // 씬 번호별로 이미지 그룹화
@@ -136,21 +123,15 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
 
   // 전체 클립 수 계산 (로그용)
   let totalClips = 0;
-  for (const [num, imgs] of sceneGroups) {
-    const audioPath = path.join(audioDir, `scene_${num}.mp3`);
-    const audioDur = fs.existsSync(audioPath) ? getFileDuration(audioPath) : 0;
-    const needed = audioDur > 0 ? Math.ceil(audioDur / 5_000_000) : imgs.length;
-    totalClips += Math.max(needed, imgs.length);
+  for (const [, imgs] of sceneGroups) {
+    totalClips += imgs.length;
   }
 
   emit(projectId, { type: 'log', message: `[10단계] 영상 생성 (${totalClips}개 클립)` });
 
   for (const [sceneNum, sceneImages] of [...sceneGroups.entries()].sort()) {
-    const audioPath = path.join(audioDir, `scene_${sceneNum}.mp3`);
-    const audioDur = fs.existsSync(audioPath) ? getFileDuration(audioPath) : 0;
-    // 오디오 길이 기준으로 필요한 클립 수 계산 (5초 클립 단위)
-    const neededClips = audioDur > 0 ? Math.ceil(audioDur / 5_000_000) : sceneImages.length;
-    const totalSlots = Math.max(neededClips, sceneImages.length);
+    // 클립 수 = 계획된 이미지 슬롯 수; 타임라인 채우기는 CapCut 편집기가 담당
+    const totalSlots = sceneImages.length;
 
     for (let i = 0; i < totalSlots; i++) {
       const suffix = String.fromCharCode(65 + i); // A, B, C…
