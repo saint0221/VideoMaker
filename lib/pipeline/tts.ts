@@ -1,5 +1,6 @@
 import { emit } from '../events';
 import { writeFileBinary, writeFile } from '../project';
+import { loadSettings } from '../settings';
 
 function parseNarrations(scriptMd: string): Array<{ id: string; text: string }> {
   const scenes: Array<{ id: string; text: string }> = [];
@@ -100,7 +101,7 @@ export async function runTTS(projectId: string, scriptMd: string): Promise<void>
     return;
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingual)
+  const voiceId = loadSettings().voiceId ?? process.env.ELEVENLABS_VOICE_ID ?? 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingual)
   const scenes = parseNarrations(scriptMd);
 
   if (scenes.length === 0) {

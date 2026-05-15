@@ -37,6 +37,10 @@ export default function HomePage() {
   const [pickingFolder, setPickingFolder] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [detectMsg, setDetectMsg] = useState('');
+  const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string; preview_url: string }[]>([]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState('');
+  const [playingVoiceId, setPlayingVoiceId] = useState('');
+  const [voicesError, setVoicesError] = useState('');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -46,7 +50,14 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    fetch('/api/settings').then(r => r.json()).then(s => setCapcutRoot(s.capcutRoot ?? '')).catch(() => {});
+    fetch('/api/settings').then(r => r.json()).then(s => {
+      setCapcutRoot(s.capcutRoot ?? '');
+      setSelectedVoiceId(s.voiceId ?? '');
+    }).catch(() => {});
+    fetch('/api/settings/voices').then(r => r.json()).then(data => {
+      if (data.voices) setVoices(data.voices);
+      else setVoicesError(data.error ?? '음성 목록을 불러오지 못했습니다.');
+    }).catch(() => setVoicesError('음성 목록을 불러오지 못했습니다.'));
   }, []);
 
   useEffect(() => {
@@ -115,6 +126,27 @@ export default function HomePage() {
     } catch {
       setSettingsError('설정 저장에 실패했습니다.');
     }
+  }
+
+  async function handleSelectVoice(voiceId: string) {
+    setSelectedVoiceId(voiceId);
+    await fetch('/api/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voiceId }),
+    });
+  }
+
+  function handlePlayPreview(voice: { voice_id: string; preview_url: string }) {
+    if (playingVoiceId === voice.voice_id) {
+      setPlayingVoiceId('');
+      return;
+    }
+    setPlayingVoiceId(voice.voice_id);
+    const audio = new Audio(voice.preview_url);
+    audio.play();
+    audio.onended = () => setPlayingVoiceId('');
+    audio.onerror = () => setPlayingVoiceId('');
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -245,6 +277,82 @@ export default function HomePage() {
             {settingsError}
           </p>
         )}
+
+        <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 20 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
+            TTS 음성 선택
+            {selectedVoiceId && voices.length > 0 && (
+              <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 500 }}>
+                — {voices.find(v => v.voice_id === selectedVoiceId)?.name ?? selectedVoiceId}
+              </span>
+            )}
+          </p>
+          {voicesError ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{voicesError}</p>
+          ) : voices.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>불러오는 중…</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+              {voices.map(v => {
+                const isSelected = selectedVoiceId === v.voice_id;
+                const isPlaying = playingVoiceId === v.voice_id;
+                return (
+                  <div
+                    key={v.voice_id}
+                    onClick={() => handleSelectVoice(v.voice_id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                      background: isSelected ? 'rgba(124,111,255,0.08)' : 'var(--surface-2)',
+                      cursor: 'pointer',
+                      transition: 'border-color 0.15s',
+                    }}
+                  >
+                    <button
+                      onClick={e => { e.stopPropagation(); handlePlayPreview(v); }}
+                      style={{
+                        flexShrink: 0,
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: isPlaying ? 'var(--accent)' : 'var(--surface)',
+                        color: isPlaying ? '#fff' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      title="미리듣기"
+                    >
+                      {isPlaying ? '■' : '▶'}
+                    </button>
+                    <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: 'var(--text)', flex: 1 }}>
+                      {v.name}
+                    </span>
+                    <span style={{
+                      fontSize: 11,
+                      color: 'var(--text-muted)',
+                      background: 'var(--surface)',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                    }}>
+                      {v.category}
+                    </span>
+                    {isSelected && (
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>선택됨</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </section>
 
       {projects.length > 0 && (
