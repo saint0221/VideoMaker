@@ -5,6 +5,7 @@ interface ElevenLabsVoice {
   name: string;
   category: string;
   preview_url: string;
+  labels: Record<string, string>;
 }
 
 export async function GET() {
@@ -27,6 +28,7 @@ export async function GET() {
     name: v.name,
     category: v.category,
     preview_url: v.preview_url,
+    labels: v.labels,
   }));
 
   return NextResponse.json({ voices });

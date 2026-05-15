@@ -37,7 +37,8 @@ export default function HomePage() {
   const [pickingFolder, setPickingFolder] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [detectMsg, setDetectMsg] = useState('');
-  const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string; preview_url: string }[]>([]);
+  const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string; preview_url: string; labels: Record<string, string> }[]>([]);
+  const [koOnly, setKoOnly] = useState(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [playingVoiceId, setPlayingVoiceId] = useState('');
   const [voicesError, setVoicesError] = useState('');
@@ -137,7 +138,7 @@ export default function HomePage() {
     });
   }
 
-  function handlePlayPreview(voice: { voice_id: string; preview_url: string }) {
+  function handlePlayPreview(voice: { voice_id: string; preview_url: string; labels: Record<string, string> }) {
     if (playingVoiceId === voice.voice_id) {
       setPlayingVoiceId('');
       return;
@@ -279,21 +280,38 @@ export default function HomePage() {
         )}
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 20 }}>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
-            TTS 음성 선택
-            {selectedVoiceId && voices.length > 0 && (
-              <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 500 }}>
-                — {voices.find(v => v.voice_id === selectedVoiceId)?.name ?? selectedVoiceId}
-              </span>
-            )}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, flex: 1 }}>
+              TTS 음성 선택
+              {selectedVoiceId && voices.length > 0 && (
+                <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 500 }}>
+                  — {voices.find(v => v.voice_id === selectedVoiceId)?.name ?? selectedVoiceId}
+                </span>
+              )}
+            </p>
+            <button
+              onClick={() => setKoOnly(v => !v)}
+              style={{
+                fontSize: 12,
+                padding: '3px 10px',
+                borderRadius: 12,
+                border: `1px solid ${koOnly ? 'var(--accent)' : 'var(--border)'}`,
+                background: koOnly ? 'rgba(124,111,255,0.12)' : 'transparent',
+                color: koOnly ? 'var(--accent)' : 'var(--text-muted)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              🇰🇷 한국어만
+            </button>
+          </div>
           {voicesError ? (
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{voicesError}</p>
           ) : voices.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>불러오는 중…</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
-              {voices.map(v => {
+              {voices.filter(v => !koOnly || /korean|ko/i.test(v.labels?.language ?? '')).map(v => {
                 const isSelected = selectedVoiceId === v.voice_id;
                 const isPlaying = playingVoiceId === v.voice_id;
                 return (
@@ -335,6 +353,17 @@ export default function HomePage() {
                     <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: 'var(--text)', flex: 1 }}>
                       {v.name}
                     </span>
+                    {v.labels?.language && (
+                      <span style={{
+                        fontSize: 11,
+                        color: /korean|ko/i.test(v.labels.language) ? '#4ade80' : 'var(--text-muted)',
+                        background: 'var(--surface)',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                      }}>
+                        {v.labels.language}
+                      </span>
+                    )}
                     <span style={{
                       fontSize: 11,
                       color: 'var(--text-muted)',
