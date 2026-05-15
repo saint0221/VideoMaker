@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Project, PipelineStatus } from '@/lib/types';
@@ -41,6 +41,7 @@ export default function HomePage() {
   const [koOnly, setKoOnly] = useState(false);
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [playingVoiceId, setPlayingVoiceId] = useState('');
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [voicesError, setVoicesError] = useState('');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
@@ -139,15 +140,20 @@ export default function HomePage() {
   }
 
   function handlePlayPreview(voice: { voice_id: string; preview_url: string; labels: Record<string, string> }) {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
     if (playingVoiceId === voice.voice_id) {
       setPlayingVoiceId('');
       return;
     }
     setPlayingVoiceId(voice.voice_id);
     const audio = new Audio(voice.preview_url);
+    currentAudioRef.current = audio;
     audio.play();
-    audio.onended = () => setPlayingVoiceId('');
-    audio.onerror = () => setPlayingVoiceId('');
+    audio.onended = () => { currentAudioRef.current = null; setPlayingVoiceId(''); };
+    audio.onerror = () => { currentAudioRef.current = null; setPlayingVoiceId(''); };
   }
 
   async function handleCreate(e: React.FormEvent) {
