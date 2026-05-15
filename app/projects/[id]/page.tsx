@@ -924,20 +924,20 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>
                 이미지가 없습니다. FAL API 키가 서버에 반영되지 않았거나 프롬프트가 잘못되었을 수 있습니다.
               </p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button className="btn btn-outline" onClick={handleRegenerateImages} disabled={regenerating || regeneratingPrompts}>
-                  {regenerating ? '⏳ 이미지 생성 중…' : '🖼 이미지 다시 생성'}
-                </button>
-                <button className="btn btn-outline" onClick={handleRegeneratePrompts} disabled={regenerating || regeneratingPrompts}>
-                  {regeneratingPrompts ? '⏳ 프롬프트 재생성 중…' : '📝 씬+프롬프트 재생성'}
-                </button>
-              </div>
             </div>
           )}
-          <button className="btn btn-success" onClick={handleImagesConfirm} disabled={generatedImages.length === 0 || confirmingImages}>
-            {confirmingImages ? '⏳ 영상 생성 준비 중…' : '✓ 이미지 확인 완료 — 영상 생성 시작'}
-          </button>
-          {generatedImages.length === 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn btn-success" onClick={handleImagesConfirm} disabled={generatedImages.length === 0 || confirmingImages || regenerating || regeneratingPrompts}>
+              {confirmingImages ? '⏳ 영상 생성 준비 중…' : '✓ 이미지 확인 완료 — 영상 생성 시작'}
+            </button>
+            <button className="btn btn-outline" onClick={handleRegenerateImages} disabled={regenerating || regeneratingPrompts || confirmingImages}>
+              {regenerating ? '⏳ 이미지 생성 중…' : '↻ 이미지 재생성'}
+            </button>
+            <button className="btn btn-outline" onClick={handleRegeneratePrompts} disabled={regenerating || regeneratingPrompts || confirmingImages}>
+              {regeneratingPrompts ? '⏳ 프롬프트 재생성 중…' : '📝 씬+프롬프트 재생성'}
+            </button>
+          </div>
+          {generatedImages.length === 0 && !regenerating && !regeneratingPrompts && (
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
               이미지를 먼저 생성해주세요
             </p>
