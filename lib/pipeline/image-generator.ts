@@ -167,6 +167,14 @@ export async function runImageGenerator(
   emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬)` });
 
   for (const scene of scenes) {
+    const localPath = `images/scene_${scene.id}.jpg`;
+    const absPath = path.join(projectDir(projectId), localPath);
+
+    if (fs.existsSync(absPath)) {
+      emit(projectId, { type: 'log', message: `  씬 ${scene.id} 건너뜀 (이미 존재)` });
+      continue;
+    }
+
     emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 생성 중…` });
 
     const body: Record<string, unknown> = {
@@ -205,11 +213,9 @@ export async function runImageGenerator(
     if (!imgRes.ok) throw new Error(`씬 ${scene.id} 이미지 다운로드 실패`);
 
     const buf = Buffer.from(await imgRes.arrayBuffer());
-    const localPath = `images/scene_${scene.id}.jpg`;
     writeFileBinary(projectId, localPath, buf);
 
     if (scene.textComposite) {
-      const absPath = path.join(projectDir(projectId), localPath);
       await compositeText(absPath, scene.textComposite);
       emit(projectId, { type: 'log', message: `  ✏️  씬 ${scene.id} 텍스트 합성 완료` });
     }
