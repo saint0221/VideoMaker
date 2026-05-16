@@ -129,6 +129,54 @@ function parseSlotDescriptions(
   return results;
 }
 
+function computeSlotTimingsDeterministic(
+  slots: Array<{ slotId: string; desc: string }>,
+  srtEntries: SrtEntry[],
+  totalDuration: number,
+): Map<string, { start: number; end: number }> | null {
+  if (slots.length === 0 || srtEntries.length === 0) return null;
+
+  const normalize = (s: string) =>
+    s.replace(/["""''「」『』（）()]/g, '')
+      .replace(/[.!?。！？,，、]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  // Assign each SRT entry to a slot by substring containment
+  const assignments: number[] = new Array(srtEntries.length).fill(-1);
+  for (let ei = 0; ei < srtEntries.length; ei++) {
+    const entryNorm = normalize(srtEntries[ei].text);
+    for (let si = 0; si < slots.length; si++) {
+      if (normalize(slots[si].desc).includes(entryNorm)) {
+        assignments[ei] = si;
+        break;
+      }
+    }
+    if (assignments[ei] === -1) return null; // unmatched entry → fall back
+  }
+
+  // Verify monotone (no backtracking between slots)
+  let prev = -1;
+  for (const si of assignments) {
+    if (si < prev) return null;
+    prev = si;
+  }
+
+  // Verify every slot has at least one entry
+  for (let si = 0; si < slots.length; si++) {
+    if (!assignments.includes(si)) return null;
+  }
+
+  const result = new Map<string, { start: number; end: number }>();
+  for (let si = 0; si < slots.length; si++) {
+    const matching = srtEntries.filter((_, ei) => assignments[ei] === si);
+    const start = si === 0 ? 0 : matching[0].start;
+    const end = si === slots.length - 1 ? totalDuration : matching[matching.length - 1].end;
+    result.set(slots[si].slotId, { start, end });
+  }
+  return result;
+}
+
 async function computeSlotTimings(
   slots: Array<{ slotId: string; desc: string }>,
   srtEntries: SrtEntry[],
@@ -700,6 +748,7 @@ interface SceneAsset {
   videoFiles: string[];
   audioFile?: string;
   srtFile?: string;
+  sentenceSrtFile?: string;
   duration: number;  // microseconds, audio-driven
 }
 
@@ -769,6 +818,15 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       srtFile = srtDest;
     }
 
+    // Bundle sentence-level SRT (for deterministic slot timing)
+    const sentenceSrtSrc = path.join(subsDir, `scene_${id}_sentences.srt`);
+    let sentenceSrtFile: string | undefined;
+    if (fs.existsSync(sentenceSrtSrc)) {
+      const sentenceSrtDest = path.join(bundledSubsDir, `scene_${id}_sentences.srt`);
+      fs.copyFileSync(sentenceSrtSrc, sentenceSrtDest);
+      sentenceSrtFile = sentenceSrtDest;
+    }
+
     const videoPattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.mp4$`);
     // Bundle videos into capcut-project/videos/
     const sceneVideoFiles = fs.existsSync(videosDir)
@@ -790,7 +848,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     // Scene duration is audio-driven; fall back to video total if no audio
     const duration = audioDuration > 0 ? audioDuration : (totalVideoDuration || 5_000_000);
 
-    scenes.push({ id, videoFiles: sceneVideoFiles, audioFile, srtFile, duration });
+    scenes.push({ id, videoFiles: sceneVideoFiles, audioFile, srtFile, sentenceSrtFile, duration });
   }
 
   // ---- Precompute slot timings for all scenes in parallel ----
@@ -820,7 +878,23 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   const sceneTimingMaps = await Promise.all(
     scenes.map(async (s, si) => {
       const { slots } = sceneSlotSets[si];
-      if (slots.length <= 1 || !s.srtFile) return null;
+      if (slots.length <= 1) return null;
+
+      // Prefer sentence-level SRT for deterministic matching (no cross-slot spans)
+      if (s.sentenceSrtFile) {
+        const sentContent = fs.readFileSync(s.sentenceSrtFile, 'utf-8');
+        const sentEntries = parseSrt(sentContent);
+        if (sentEntries.length > 0) {
+          const deterministic = computeSlotTimingsDeterministic(slots, sentEntries, s.duration);
+          if (deterministic) return deterministic;
+          // Deterministic failed → fall back to LLM with sentence-level SRT (cleaner input)
+          emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${s.id} 결정론적 매핑 실패 — LLM 매핑 시도` });
+          return computeSlotTimings(slots, sentEntries, s.duration);
+        }
+      }
+
+      // Legacy: word-level SRT with LLM
+      if (!s.srtFile) return null;
       const srtContent = fs.readFileSync(s.srtFile, 'utf-8');
       const srtEntries = parseSrt(srtContent);
       if (srtEntries.length === 0) return null;
