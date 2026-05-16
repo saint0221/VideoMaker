@@ -1,5 +1,6 @@
 import { emit } from '../events';
 import { writeFileBinary, writeFile } from '../project';
+import { loadSettings } from '../settings';
 
 function parseNarrations(scriptMd: string): Array<{ id: string; text: string }> {
   const scenes: Array<{ id: string; text: string }> = [];
@@ -93,6 +94,57 @@ function alignmentToSRT(alignment: AlignmentData): string {
     .join('\n');
 }
 
+function alignmentToSrtSentences(alignment: AlignmentData): string {
+  const { characters, character_start_times_seconds, character_end_times_seconds } = alignment;
+
+  const words: { text: string; start: number; end: number }[] = [];
+  let wordChars: string[] = [];
+  let wordStart = 0;
+  let wordEnd = 0;
+
+  for (let i = 0; i < characters.length; i++) {
+    const ch = characters[i];
+    if (ch === ' ' || ch === '\n' || ch === '\t') {
+      if (wordChars.length > 0) {
+        words.push({ text: wordChars.join(''), start: wordStart, end: wordEnd });
+        wordChars = [];
+      }
+    } else {
+      if (wordChars.length === 0) wordStart = character_start_times_seconds[i];
+      wordChars.push(ch);
+      wordEnd = character_end_times_seconds[i];
+    }
+  }
+  if (wordChars.length > 0) {
+    words.push({ text: wordChars.join(''), start: wordStart, end: wordEnd });
+  }
+
+  if (words.length === 0) return '';
+
+  // Group words into sentence-level segments split at sentence-ending punctuation
+  const segments: { text: string; start: number; end: number }[] = [];
+  let sentWords: string[] = [];
+  let sentStart = 0;
+
+  for (const word of words) {
+    if (sentWords.length === 0) sentStart = word.start;
+    sentWords.push(word.text);
+    if (/[.!?。！？]$/.test(word.text)) {
+      segments.push({ text: sentWords.join(' '), start: sentStart, end: word.end });
+      sentWords = [];
+    }
+  }
+  if (sentWords.length > 0) {
+    segments.push({ text: sentWords.join(' '), start: sentStart, end: words[words.length - 1].end });
+  }
+
+  if (segments.length === 0) return '';
+
+  return segments
+    .map((seg, k) => `${k + 1}\n${formatSRTTime(seg.start)} --> ${formatSRTTime(seg.end)}\n${seg.text}\n`)
+    .join('\n');
+}
+
 export async function runTTS(projectId: string, scriptMd: string): Promise<void> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
@@ -100,7 +152,7 @@ export async function runTTS(projectId: string, scriptMd: string): Promise<void>
     return;
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingual)
+  const voiceId = loadSettings().voiceId ?? process.env.ELEVENLABS_VOICE_ID ?? 'Xb7hH8MSUJpSbSDYk0k2'; // Alice (multilingual)
   const scenes = parseNarrations(scriptMd);
 
   if (scenes.length === 0) {
@@ -136,6 +188,7 @@ export async function runTTS(projectId: string, scriptMd: string): Promise<void>
     const buf = Buffer.from(json.audio_base64, 'base64');
     writeFileBinary(projectId, `audio/scene_${scene.id}.mp3`, buf);
     writeFile(projectId, `subtitles/scene_${scene.id}.srt`, alignmentToSRT(json.alignment));
+    writeFile(projectId, `subtitles/scene_${scene.id}_sentences.srt`, alignmentToSrtSentences(json.alignment));
 
     emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.id} 완료` });
   }
