@@ -6,6 +6,7 @@ const SETTINGS_PATH = path.join(process.cwd(), 'data', 'settings.json');
 
 export interface Settings {
   capcutRoot: string;
+  voiceId?: string;
 }
 
 function defaults(): Settings {

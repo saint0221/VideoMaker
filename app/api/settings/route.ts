@@ -13,6 +13,9 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.capcutRoot === 'string' && body.capcutRoot.trim()) {
     updated.capcutRoot = body.capcutRoot.trim();
   }
+  if (typeof body.voiceId === 'string') {
+    updated.voiceId = body.voiceId || undefined;
+  }
   saveSettings(updated);
   return NextResponse.json(updated);
 }
