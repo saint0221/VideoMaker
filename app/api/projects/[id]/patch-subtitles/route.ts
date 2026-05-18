@@ -69,7 +69,7 @@ function patchSubtitles(sceneDesignMd: string, srtMap: Map<string, string[]>): {
       continue;
     }
 
-    const newBody = body.replace(/- 자막:\s*"[^"]*"/, () => {
+    const newBody = body.replace(/- 자막:[^\n]*/, () => {
       changes++;
       return `- 자막: "${sentence}"`;
     });
