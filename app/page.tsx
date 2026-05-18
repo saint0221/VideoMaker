@@ -43,6 +43,7 @@ export default function HomePage() {
   const [playingVoiceId, setPlayingVoiceId] = useState('');
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [voicesError, setVoicesError] = useState('');
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -165,7 +166,7 @@ export default function HomePage() {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topic.trim() }),
+        body: JSON.stringify({ topic: topic.trim(), aspectRatio }),
       });
       if (!res.ok) throw new Error('프로젝트 생성 실패');
       const project: Project = await res.json();
@@ -194,31 +195,56 @@ export default function HomePage() {
         <h2 style={{ fontSize: 16, fontWeight: 600, marginTop: 0, marginBottom: 16, color: 'var(--text)' }}>
           새 영상 제작
         </h2>
-        <form onSubmit={handleCreate} style={{ display: 'flex', gap: 12 }}>
-          <input
-            type="text"
-            value={topic}
-            onChange={e => setTopic(e.target.value)}
-            placeholder="예: 조선시대 왕들의 충격적인 죽음"
-            disabled={creating}
-            style={{
-              flex: 1,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '10px 16px',
-              color: 'var(--text)',
-              fontSize: 14,
-              outline: 'none',
-            }}
-          />
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={creating || !topic.trim()}
-          >
-            {creating ? '생성중…' : '시작'}
-          </button>
+        <form onSubmit={handleCreate}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+            <input
+              type="text"
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
+              placeholder="예: 조선시대 왕들의 충격적인 죽음"
+              disabled={creating}
+              style={{
+                flex: 1,
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: '10px 16px',
+                color: 'var(--text)',
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={creating || !topic.trim()}
+            >
+              {creating ? '생성중…' : '시작'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>비율:</span>
+            {(['16:9', '9:16'] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setAspectRatio(r)}
+                disabled={creating}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  border: `1px solid ${aspectRatio === r ? 'var(--accent)' : 'var(--border)'}`,
+                  background: aspectRatio === r ? 'var(--accent)' : 'var(--surface-2)',
+                  color: aspectRatio === r ? '#fff' : 'var(--text-muted)',
+                  fontSize: 13,
+                  fontWeight: aspectRatio === r ? 600 : 400,
+                  cursor: creating ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {r === '16:9' ? '16:9 (가로)' : '9:16 (숏츠)'}
+              </button>
+            ))}
+          </div>
         </form>
         {error && (
           <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>

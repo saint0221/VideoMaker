@@ -56,6 +56,7 @@ export interface Project {
   capcutPath?: string;
   capcutDraftId?: string;
   capcutTimelineId?: string;
+  aspectRatio?: '16:9' | '9:16';
 }
 
 export type SSEEvent =

@@ -1,5 +1,5 @@
 import { emit } from '../events';
-import { writeFileBinary, projectFile } from '../project';
+import { writeFileBinary, projectFile, loadProject } from '../project';
 import { uploadBufferToFal } from './utils';
 import fs from 'fs';
 import path from 'path';
@@ -26,6 +26,7 @@ async function generateVideo(
   apiKey: string,
   imageUrl: string,
   prompt: string,
+  aspectRatio: '16:9' | '9:16' = '16:9',
   onProgress?: (msg: string) => void
 ): Promise<string> {
   const submitRes = await fetch(
@@ -40,7 +41,7 @@ async function generateVideo(
         image_url: imageUrl,
         prompt,
         duration: '5',
-        aspect_ratio: '16:9',
+        aspect_ratio: aspectRatio,
       }),
     }
   );
@@ -95,6 +96,9 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     emit(projectId, { type: 'log', message: '⚠️ FAL_API_KEY 없음 — 영상 생성 건너뜀' });
     return;
   }
+
+  const project = loadProject(projectId);
+  const aspectRatio: '16:9' | '9:16' = project?.aspectRatio === '9:16' ? '9:16' : '16:9';
 
   // Find all generated images
   const imagesDir = projectFile(projectId, 'images');
@@ -179,6 +183,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
         apiKey,
         imageUrl,
         'cinematic slow motion, dramatic atmosphere, documentary style',
+        aspectRatio,
         onProgress
       );
 

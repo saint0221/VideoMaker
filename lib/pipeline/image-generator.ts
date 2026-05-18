@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { emit } from '../events';
-import { writeFileBinary, projectFile, projectDir } from '../project';
+import { writeFileBinary, projectFile, projectDir, loadProject } from '../project';
 import { uploadBufferToFal } from './utils';
 
 interface FalImageResult {
@@ -173,7 +173,10 @@ export async function runImageGenerator(
     }
   }
 
-  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬)` });
+  const project = loadProject(projectId);
+  const imageSize = project?.aspectRatio === '9:16' ? 'portrait_9_16' : 'landscape_16_9';
+
+  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'})` });
 
   const alreadyDoneImages = scenes.filter((s) =>
     fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
@@ -202,7 +205,7 @@ export async function runImageGenerator(
 
     const body: Record<string, unknown> = {
       prompt: scene.prompt,
-      image_size: 'landscape_16_9',
+      image_size: imageSize,
       num_inference_steps: 28,
       guidance_scale: 3.5,
       num_images: 1,
