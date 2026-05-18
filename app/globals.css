@@ -87,6 +87,14 @@ body {
   50% { box-shadow: 0 0 0 7px rgba(99,102,241,0.08); }
 }
 
+.status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.status-dot-running { background: var(--success); animation: status-dot-pulse 1.4s ease-in-out infinite; }
+@keyframes status-dot-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.6); }
+  60% { box-shadow: 0 0 0 7px rgba(74,222,128,0); }
+  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+}
+
 .concept-card {
   background: var(--surface-2);
   border: 2px solid var(--border);
