@@ -174,7 +174,7 @@ export async function runImageGenerator(
   }
 
   const project = loadProject(projectId);
-  const imageSize = project?.aspectRatio === '9:16' ? 'portrait_9_16' : 'landscape_16_9';
+  const imageSize = project?.aspectRatio === '9:16' ? 'portrait_16_9' : 'landscape_16_9';
 
   emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'})` });
 
