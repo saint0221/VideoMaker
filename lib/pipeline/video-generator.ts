@@ -142,7 +142,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
       }
     }
   }
-  const COST_PER_CLIP = 0.28;
+  const COST_PER_CLIP = 0.71;
   emit(projectId, {
     type: 'cost',
     stage: 'video',

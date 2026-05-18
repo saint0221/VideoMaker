@@ -551,6 +551,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-capcut`, { method: 'POST' });
   }
 
+  async function handleRegenerateTtsCapcut() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-tts`, { method: 'POST' });
+  }
+
 
   async function handleDelete() {
     if (!confirm('이 프로젝트를 삭제하시겠습니까? 모든 파일이 삭제됩니다.')) return;
@@ -1003,6 +1009,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               onClick={handleRegenerateCapcut}
             >
               ↺ CapCut 프로젝트 재생성
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: 12, padding: '5px 14px' }}
+              onClick={handleRegenerateTtsCapcut}
+            >
+              🎙️ TTS + CapCut 재생성
             </button>
           </div>
         </div>
