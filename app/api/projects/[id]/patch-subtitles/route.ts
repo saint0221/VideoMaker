@@ -26,7 +26,7 @@ function buildSrtMap(projectId: string): Map<string, string[]> {
     if (!m) continue;
     const content = fs.readFileSync(path.join(subtitlesDir, file), 'utf-8');
     const sentences = parseSentenceSrt(content);
-    if (sentences.length > 0) map.set(m[1], sentences);
+    if (sentences.length > 0) map.set(String(parseInt(m[1], 10)), sentences);
   }
 
   return map;
@@ -36,15 +36,15 @@ function patchSubtitles(sceneDesignMd: string, srtMap: Map<string, string[]>): {
   const sceneCounters = new Map<string, number>();
   let changes = 0;
 
-  // Split on slot headers, preserving them as odd-index elements
-  const parts = sceneDesignMd.split(/(### 슬롯 \d+-[A-Za-z]+[^\n]*)/);
+  // Split on slot headers — matches "### 이미지 슬롯 NN-X ..." and "### 슬롯 N-X ..."
+  const parts = sceneDesignMd.split(/(### (?:이미지 )?슬롯 \d+-[A-Za-z]+[^\n]*)/);
   const result: string[] = [parts[0]];
 
   for (let i = 1; i < parts.length; i += 2) {
     const header = parts[i];
     const body = i + 1 < parts.length ? parts[i + 1] : '';
 
-    const m = header.match(/### 슬롯 (\d+)-/);
+    const m = header.match(/### (?:이미지 )?슬롯 (\d+)-/);
     result.push(header);
 
     if (!m) {
@@ -52,7 +52,7 @@ function patchSubtitles(sceneDesignMd: string, srtMap: Map<string, string[]>): {
       continue;
     }
 
-    const sceneNum = m[1];
+    const sceneNum = String(parseInt(m[1], 10));
     const sentences = srtMap.get(sceneNum);
 
     if (!sentences) {
