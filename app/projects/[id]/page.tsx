@@ -551,6 +551,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-capcut`, { method: 'POST' });
   }
 
+  async function handlePatchSubtitles() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/patch-subtitles`, { method: 'POST' });
+  }
+
   async function handleRegenerateTtsCapcut() {
     setLogs([]);
     connectSSE();
@@ -1016,6 +1022,13 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               onClick={handleRegenerateTtsCapcut}
             >
               🎙️ TTS + CapCut 재생성
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: 12, padding: '5px 14px' }}
+              onClick={handlePatchSubtitles}
+            >
+              ✏️ 자막 패치 + CapCut 재생성
             </button>
           </div>
         </div>
