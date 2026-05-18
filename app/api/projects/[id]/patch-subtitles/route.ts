@@ -36,11 +36,12 @@ function patchSubtitles(sceneDesignMd: string, srtMap: Map<string, string[]>): {
   const sceneCounters = new Map<string, number>();
   let changes = 0;
 
-  // Split on slot headers — matches:
-  //   "### 이미지 슬롯 NN-X ..."  (scene-designer v1)
-  //   "### 슬롯 N-X ..."          (legacy)
-  //   "### [SCENE NN-X] ..."     (scene-designer v2)
-  const SLOT_HEADER_RE = /(### (?:(?:이미지 )?슬롯 \d+-[A-Za-z]+|\[SCENE \d+-[A-Za-z]+\])[^\n]*)/;
+  // Split on slot headers — matches all known formats:
+  //   "### 이미지 슬롯 NN-X ..."  (current standard)
+  //   "### 슬롯 NN-X ..."         (legacy)
+  //   "### [SCENE NN-X] ..."      (legacy v2)
+  //   "### [SLOT NN-X] ..."       (legacy v3)
+  const SLOT_HEADER_RE = /(### (?:(?:이미지 )?슬롯 \d+-[A-Za-z]+|\[(?:SCENE|SLOT) \d+-[A-Za-z]+\])[^\n]*)/;
   const parts = sceneDesignMd.split(SLOT_HEADER_RE);
   const result: string[] = [parts[0]];
 
@@ -48,7 +49,7 @@ function patchSubtitles(sceneDesignMd: string, srtMap: Map<string, string[]>): {
     const header = parts[i];
     const body = i + 1 < parts.length ? parts[i + 1] : '';
 
-    const m = header.match(/### (?:(?:이미지 )?슬롯 |\[SCENE )(\d+)-/);
+    const m = header.match(/### (?:(?:이미지 )?슬롯 |\[(?:SCENE|SLOT) )(\d+)-/);
     result.push(header);
 
     if (!m) {
