@@ -162,17 +162,38 @@ function computeSlotTimingsDeterministic(
     prev = si;
   }
 
-  // Verify every slot has at least one entry
-  for (let si = 0; si < slots.length; si++) {
-    if (!assignments.includes(si)) return null;
-  }
+  // Build per-slot entry groups; slots with no entries get null (filled in pass 2)
+  const slotEntries = slots.map((_, si) => srtEntries.filter((_, ei) => assignments[ei] === si));
 
+  const rawTimings: Array<{ start: number; end: number } | null> = slotEntries.map((matching, si) => {
+    if (matching.length === 0) return null;
+    return {
+      start: si === 0 ? 0 : matching[0].start,
+      end: si === slots.length - 1 ? totalDuration : matching[matching.length - 1].end,
+    };
+  });
+
+  // Pass 2: equal-split the gap between neighboring filled slots for empty slots
   const result = new Map<string, { start: number; end: number }>();
-  for (let si = 0; si < slots.length; si++) {
-    const matching = srtEntries.filter((_, ei) => assignments[ei] === si);
-    const start = si === 0 ? 0 : matching[0].start;
-    const end = si === slots.length - 1 ? totalDuration : matching[matching.length - 1].end;
-    result.set(slots[si].slotId, { start, end });
+  let i = 0;
+  while (i < slots.length) {
+    if (rawTimings[i] !== null) {
+      result.set(slots[i].slotId, rawTimings[i]!);
+      i++;
+      continue;
+    }
+    const runStart = i;
+    while (i < slots.length && rawTimings[i] === null) i++;
+    const runEnd = i;
+    const gapStart = runStart === 0 ? 0 : rawTimings[runStart - 1]!.end;
+    const gapEnd = runEnd >= slots.length ? totalDuration : rawTimings[runEnd]!.start;
+    const each = (gapEnd - gapStart) / (runEnd - runStart);
+    for (let j = 0; j < runEnd - runStart; j++) {
+      result.set(slots[runStart + j].slotId, {
+        start: gapStart + j * each,
+        end: gapStart + (j + 1) * each,
+      });
+    }
   }
   return result;
 }

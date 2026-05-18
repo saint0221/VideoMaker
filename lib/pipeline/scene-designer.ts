@@ -1,5 +1,7 @@
+import fs from 'fs';
+import path from 'path';
 import { emit } from '../events';
-import { writeFile } from '../project';
+import { writeFile, projectFile } from '../project';
 import { runClaude } from './claude-runner';
 import { extractTargetSeconds } from './utils';
 
@@ -56,8 +58,39 @@ const SYSTEM = `당신은 유튜브 영상 씬 설계 전문가입니다.
 - 역사적/사실적 씬은 다큐멘터리 스타일 명시
 - 한국어로 작성 (프롬프트만 영문)
 - **클립 수 제한**: Kling 영상 API 최소 클립 길이 = 5초. 총 이미지 슬롯 수(A/B 컷 포함) ≤ floor(목표초 / 5). 목표 시간을 반드시 준수할 것
-- **자막 원칙**: 각 슬롯의 "자막:" 필드는 script-final.md의 해당 씬 나레이션을 슬롯 수만큼 연속 구간으로 분할하여 각 구간의 원문을 그대로 입력. 요약·재작성 절대 금지. 씬 전체 나레이션이 A/B 슬롯에 걸쳐 있으면 앞부분→A, 뒷부분→B로 분배. 모든 슬롯의 자막을 이어 붙이면 해당 씬 나레이션 원문이 복원되어야 함.`;
+- **자막 원칙**: 프롬프트 하단에 "TTS 문장 목록"이 있으면 그 문장을 우선 사용:
+  1. 해당 씬의 TTS 문장을 슬롯 수만큼 균등 배분 (앞 슬롯부터 채움)
+  2. 각 슬롯의 "자막:" 필드에 배정된 문장을 원문 그대로 공백으로 이어 붙임 — 절대 요약·수정 금지
+  3. 슬롯 수 > 문장 수이면 남는 슬롯의 자막은 빈 문자열("")
+  TTS 문장 목록이 없으면 script-final.md 나레이션을 슬롯 수만큼 균등 분할하여 원문 그대로 입력.`;
 
+
+function readSrtSentences(projectId: string): string {
+  const subtitlesDir = projectFile(projectId, 'subtitles');
+  if (!fs.existsSync(subtitlesDir)) return '';
+
+  const files = fs.readdirSync(subtitlesDir)
+    .filter(f => /^scene_\d+_sentences\.srt$/.test(f))
+    .sort();
+
+  if (files.length === 0) return '';
+
+  const lines: string[] = ['## TTS 문장 목록 (자막 필드에 원문 그대로 사용할 것)'];
+  for (const file of files) {
+    const m = file.match(/^scene_(\d+)_sentences\.srt$/);
+    if (!m) continue;
+    const sceneNum = m[1];
+    const content = fs.readFileSync(path.join(subtitlesDir, file), 'utf-8');
+    const sentences = content
+      .split(/\n\n+/)
+      .map(block => block.trim().split('\n').slice(2).join(' ').trim())
+      .filter(s => s.length > 0);
+    lines.push(`\n씬 ${sceneNum}:`);
+    sentences.forEach((s, i) => lines.push(`  ${i + 1}. ${s}`));
+  }
+
+  return lines.join('\n');
+}
 
 export async function runSceneDesigner(
   projectId: string,
@@ -73,6 +106,9 @@ export async function runSceneDesigner(
     ? `\n⚠️ 목표 길이 ${targetSecs}초 → 최대 ${maxClips}개 이미지 슬롯(A/B컷 합산). 이를 초과하면 안 됩니다.`
     : '';
 
+  const srtSentences = readSrtSentences(projectId);
+  const srtSection = srtSentences ? `\n\n${srtSentences}` : '';
+
   const prompt = `${SYSTEM}
 
 ---
@@ -83,7 +119,7 @@ export async function runSceneDesigner(
 ${scriptMd}
 
 ## 기획서 (brief.md)
-${briefMd}
+${briefMd}${srtSection}
 
 아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
