@@ -593,6 +593,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   const { stageIdx, running, paused } = getStatusIndex(project.status, project.lastStatus);
+  const lastLogStr = logs.reduceRight<string | null>((acc, log) => {
+    if (acc !== null) return acc;
+    return typeof log === 'string' && !log.startsWith('⚠️') ? log : null;
+  }, null);
   const isIdle = project.status === 'idle';
   const isWaitingYoutubeUrls = project.status === 'waiting:youtube-urls';
   const isWaitingConcept = project.status === 'waiting:concept';
@@ -712,12 +716,41 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {/* Running state: show log */}
       {(isRunning || sseActive || logs.length > 0) && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-              {sseActive && isRunning ? `⚡ 실행 중… (${formatSec(elapsedSec)} 경과)` : '로그'}
-            </h3>
-            {sseActive && (
-              <span style={{ fontSize: 12, color: 'var(--accent)' }}>실시간 업데이트</span>
+          <div style={{ marginBottom: 12 }}>
+            {isError ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', borderRadius: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)' }}>
+                <span style={{ fontSize: 16, lineHeight: 1.2, flexShrink: 0 }}>🔴</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--error)', fontSize: 13 }}>작업이 중단되었습니다 (오류)</div>
+                  {lastLogStr && (
+                    <div style={{ fontSize: 11, color: 'var(--error)', opacity: 0.75, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      마지막: {lastLogStr}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : isRunning && sseActive ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="status-dot status-dot-running" />
+                    <span style={{ fontWeight: 700, color: 'var(--success)', fontSize: 14 }}>실행 중 · {formatSec(elapsedSec)} 경과</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--accent)' }}>실시간 업데이트</span>
+                </div>
+                {lastLogStr && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    ↳ {lastLogStr}
+                  </div>
+                )}
+                {silentSec >= 20 && (
+                  <div style={{ fontSize: 11, color: 'var(--warning)', paddingLeft: 18, marginTop: 1, padding: '4px 10px', borderRadius: 5, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                    ⏳ {formatSec(silentSec)}째 응답 없음 — Claude 처리 중 (정상)
+                  </div>
+                )}
+              </div>
+            ) : (
+              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>로그</h3>
             )}
           </div>
           <div style={{
@@ -767,18 +800,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 </div>
               );
             })}
-            {sseActive && silentSec >= 20 && (
-              <div style={{
-                color: 'var(--warning)',
-                marginTop: 8,
-                padding: '6px 10px',
-                borderRadius: 6,
-                background: 'rgba(251,191,36,0.08)',
-                border: '1px solid rgba(251,191,36,0.2)',
-              }}>
-                ⏳ Claude 처리 중… ({formatSec(silentSec)}째 응답 없음 — 정상입니다)
-              </div>
-            )}
             <div ref={logsEndRef} />
           </div>
         </div>
