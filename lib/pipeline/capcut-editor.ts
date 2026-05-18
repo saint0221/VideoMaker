@@ -289,8 +289,8 @@ function makeTextContent(text: string): string {
   });
 }
 
-function makeVideoMaterial(id: string, filePath: string, duration: number, isPhoto = false): object {
-  const size = isPhoto ? { width: 1920, height: 1080 } : getVideoSize(filePath);
+function makeVideoMaterial(id: string, filePath: string, duration: number, isPhoto = false, photoSize = { width: 1920, height: 1080 }): object {
+  const size = isPhoto ? photoSize : getVideoSize(filePath);
   const name = path.basename(filePath);
   return {
     id,
@@ -783,6 +783,9 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
 
   // Reuse stable IDs so re-runs update the existing CapCut entry instead of adding duplicates
   const existingProject = loadProject(projectId);
+  const photoSize = existingProject?.aspectRatio === '9:16'
+    ? { width: 1080, height: 1920 }
+    : { width: 1920, height: 1080 };
   const draftId = existingProject?.capcutDraftId ?? uuid();
   const timelineId = existingProject?.capcutTimelineId ?? uuid();
   const draftName = `VideoMaker_${projectId.replace(/[^\w가-힣]/g, '-').slice(0, 20)}`;
@@ -813,8 +816,9 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
   }
 
   if (sceneIds.size === 0) {
-    emit(projectId, { type: 'log', message: '⚠️ 씬 에셋 없음 — CapCut 프로젝트 건너뜀' });
-    return;
+    const msg = '영상 클립(.mp4)이 없어 CapCut 프로젝트를 생성할 수 없습니다. 이미지/영상 생성을 먼저 실행하세요.';
+    emit(projectId, { type: 'log', message: `❌ ${msg}` });
+    throw new Error(msg);
   }
 
   const scenes: SceneAsset[] = [];
@@ -1011,7 +1015,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
           const freezePath = path.join(resourcesDir, freezeName);
           if (extractLastFrame(videoFile, freezePath)) {
             const freezeId = uuid();
-            videoMaterials.push(makeVideoMaterial(freezeId, freezePath, freezeDur, true));
+            videoMaterials.push(makeVideoMaterial(freezeId, freezePath, freezeDur, true, photoSize));
             videoSegments.push(makeVideoSegment(
               uuid(), freezeId,
               sceneStart + clipOffset, freezeDur,
@@ -1031,7 +1035,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       const freezePath = path.join(resourcesDir, freezeName);
       if (extractLastFrame(lastVideoFile, freezePath)) {
         const freezeId = uuid();
-        videoMaterials.push(makeVideoMaterial(freezeId, freezePath, gap, true));
+        videoMaterials.push(makeVideoMaterial(freezeId, freezePath, gap, true, photoSize));
         videoSegments.push(makeVideoSegment(
           uuid(), freezeId,
           sceneStart + clipOffset, gap,
