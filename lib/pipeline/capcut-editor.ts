@@ -279,7 +279,7 @@ function makeTextContent(text: string): string {
     styles: [{
       fill: { content: { solid: { color: [1, 1, 1] }, render_type: 'solid' } },
       range: [0, text.length],
-      size: 5,
+      size: 8,
       font: {
         path: '/Applications/CapCut.app/Contents/Resources/Font/SystemFont/en.ttf',
         id: '',
