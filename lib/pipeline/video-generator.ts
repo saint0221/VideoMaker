@@ -1,5 +1,5 @@
 import { emit } from '../events';
-import { writeFileBinary, projectFile, loadProject } from '../project';
+import { writeFileBinary, projectFile, loadProject, appendCostLog } from '../project';
 import { uploadBufferToFal } from './utils';
 import fs from 'fs';
 import path from 'path';
@@ -147,14 +147,17 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     }
   }
   const COST_PER_CLIP = 0.71;
-  emit(projectId, {
-    type: 'cost',
-    stage: 'video',
+  const videoCostEntry = {
+    timestamp: new Date().toISOString(),
+    projectId,
+    stage: 'video' as const,
     toGenerate: videoToGenerate,
     skipped: videoSkipped,
     costPerUnit: COST_PER_CLIP,
     totalCost: +(videoToGenerate * COST_PER_CLIP).toFixed(4),
-  });
+  };
+  emit(projectId, { type: 'cost', ...videoCostEntry });
+  appendCostLog(videoCostEntry);
 
   for (const [sceneNum, sceneImages] of [...sceneGroups.entries()].sort()) {
     // 클립 수 = 계획된 이미지 슬롯 수; 타임라인 채우기는 CapCut 편집기가 담당

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import type { Project, PipelineStatus, Concept } from './types';
+import type { Project, PipelineStatus, Concept, CostLogEntry } from './types';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'projects');
 
@@ -134,6 +134,22 @@ export function parseConcepts(strategyMd: string): Concept[] {
   }
 
   return concepts;
+}
+
+const COST_LOG_FILE = path.join(process.cwd(), 'data', 'cost-log.json');
+
+export function appendCostLog(entry: CostLogEntry): void {
+  let log: CostLogEntry[] = [];
+  if (fs.existsSync(COST_LOG_FILE)) {
+    try { log = JSON.parse(fs.readFileSync(COST_LOG_FILE, 'utf-8')); } catch { log = []; }
+  }
+  log.push(entry);
+  fs.writeFileSync(COST_LOG_FILE, JSON.stringify(log, null, 2));
+}
+
+export function readCostLog(): CostLogEntry[] {
+  if (!fs.existsSync(COST_LOG_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(COST_LOG_FILE, 'utf-8')); } catch { return []; }
 }
 
 export function deleteProject(id: string): boolean {

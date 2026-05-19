@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { emit } from '../events';
-import { writeFileBinary, projectFile, projectDir, loadProject } from '../project';
+import { writeFileBinary, projectFile, projectDir, loadProject, appendCostLog } from '../project';
 import { uploadBufferToFal } from './utils';
 
 interface FalImageResult {
@@ -193,14 +193,17 @@ export async function runImageGenerator(
   ).length;
   const COST_PER_IMAGE = 0.025;
   const imagesToGenerate = scenes.length - alreadyDoneImages;
-  emit(projectId, {
-    type: 'cost',
-    stage: 'image',
+  const imageCostEntry = {
+    timestamp: new Date().toISOString(),
+    projectId,
+    stage: 'image' as const,
     toGenerate: imagesToGenerate,
     skipped: alreadyDoneImages,
     costPerUnit: COST_PER_IMAGE,
     totalCost: +(imagesToGenerate * COST_PER_IMAGE).toFixed(4),
-  });
+  };
+  emit(projectId, { type: 'cost', ...imageCostEntry });
+  appendCostLog(imageCostEntry);
 
   for (const scene of scenes) {
     const localPath = `images/scene_${scene.id}.jpg`;

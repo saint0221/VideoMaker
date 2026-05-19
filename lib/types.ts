@@ -59,6 +59,16 @@ export interface Project {
   aspectRatio?: '16:9' | '9:16';
 }
 
+export interface CostLogEntry {
+  timestamp: string;
+  projectId: string;
+  stage: 'image' | 'video';
+  toGenerate: number;
+  skipped: number;
+  costPerUnit: number;
+  totalCost: number;
+}
+
 export type SSEEvent =
   | { type: 'status'; status: PipelineStatus }
   | { type: 'log'; message: string }
