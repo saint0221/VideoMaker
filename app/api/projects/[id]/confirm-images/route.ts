@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject } from '@/lib/project';
-import { continueFromImages, handleError } from '@/lib/pipeline';
+import { loadProject, updateStatus } from '@/lib/project';
+import { calcVideoCost } from '@/lib/pipeline/video-generator';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +14,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: '이미지 확인 단계가 아닙니다.' }, { status: 409 });
   }
 
-  continueFromImages(id).catch((err) => handleError(id, err));
+  const cost = calcVideoCost(id);
+  const costPreview = { stage: 'video' as const, ...cost };
+  updateStatus(id, 'waiting:cost-video', { costPreview });
 
-  return NextResponse.json({ confirmed: true });
+  return NextResponse.json({ costPreview });
 }

@@ -9,8 +9,8 @@ import { runScriptReviser } from './script-reviser';
 import { runTTS } from './tts';
 import { runSceneDesigner } from './scene-designer';
 import { runImagePrompter } from './image-prompter';
-import { runImageGenerator, findReferenceImage } from './image-generator';
-import { runVideoGenerator } from './video-generator';
+import { runImageGenerator, findReferenceImage, calcImageCost } from './image-generator';
+import { runVideoGenerator, calcVideoCost } from './video-generator';
 import { runCapcutEditor } from './capcut-editor';
 import { emit } from '../events';
 import {
@@ -224,21 +224,16 @@ export async function runPostScript(projectId: string) {
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
-    // Stage 9: Auto-start if reference image already uploaded, otherwise wait
+    // Stage 9: Show cost preview before image generation
     const referenceImagePath = findReferenceImage(projectId) ?? undefined;
     if (referenceImagePath) {
-      emit(projectId, { type: 'log', message: '📎 레퍼런스 이미지 감지 — 이미지 생성 자동 시작' });
-      updateStatus(projectId, 'running:images');
-      emit(projectId, { type: 'status', status: 'running:images' });
-      await runImageGenerator(projectId, promptsMd, { referenceImagePath });
-      updateStatus(projectId, 'waiting:images');
-      emit(projectId, { type: 'status', status: 'waiting:images' });
-      emit(projectId, { type: 'done' });
-    } else {
-      updateStatus(projectId, 'waiting:reference');
-      emit(projectId, { type: 'status', status: 'waiting:reference' });
-      emit(projectId, { type: 'done' });
+      emit(projectId, { type: 'log', message: '📎 레퍼런스 이미지 감지 — 이미지 코스트 확인 대기 중' });
     }
+    const imageCostPreview = calcImageCost(projectId, promptsMd);
+    updateStatus(projectId, 'waiting:cost-images', { costPreview: { stage: 'images', ...imageCostPreview } });
+    emit(projectId, { type: 'status', status: 'waiting:cost-images' });
+    emit(projectId, { type: 'cost', stage: 'image', ...imageCostPreview });
+    emit(projectId, { type: 'done' });
   } catch (err) {
     handleError(projectId, err);
   }

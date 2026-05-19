@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject, listFiles } from '@/lib/project';
-import { continueFromImages, handleError } from '@/lib/pipeline';
+import { loadProject, listFiles, updateStatus } from '@/lib/project';
+import { calcVideoCost } from '@/lib/pipeline/video-generator';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +19,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'images/ 폴더에 이미지가 없습니다.' }, { status: 400 });
   }
 
-  continueFromImages(id).catch((err) => handleError(id, err));
+  const cost = calcVideoCost(id);
+  const costPreview = { stage: 'video' as const, ...cost };
+  updateStatus(id, 'waiting:cost-video', { costPreview });
 
-  return NextResponse.json({ started: true });
+  return NextResponse.json({ costPreview });
 }

@@ -167,6 +167,16 @@ async function uploadToFalStorage(filePath: string, apiKey: string): Promise<str
   }
 }
 
+export function calcImageCost(projectId: string, promptsMd: string): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
+  const scenes = parseImagePrompts(promptsMd);
+  const alreadyDone = scenes.filter((s) =>
+    fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
+  ).length;
+  const toGenerate = scenes.length - alreadyDone;
+  const COST_PER_IMAGE = 0.025;
+  return { toGenerate, skipped: alreadyDone, costPerUnit: COST_PER_IMAGE, totalCost: +(toGenerate * COST_PER_IMAGE).toFixed(4) };
+}
+
 export function findReferenceImage(projectId: string): string | null {
   for (const ext of ['jpg', 'jpeg', 'png', 'webp']) {
     const p = projectFile(projectId, `reference.${ext}`);
