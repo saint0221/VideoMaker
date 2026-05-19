@@ -96,8 +96,17 @@ async function compositeText(imagePath: string, tc: TextComposite): Promise<void
   fs.renameSync(tmpPath, imagePath);
 }
 
-function parseImagePrompts(promptsMd: string): Array<{ id: string; prompt: string; negativePrompt?: string; textComposite?: TextComposite }> {
-  const scenes: Array<{ id: string; prompt: string; negativePrompt?: string; textComposite?: TextComposite }> = [];
+interface ParsedScene {
+  id: string;
+  prompt: string;
+  negativePrompt?: string;
+  textComposite?: TextComposite;
+  sceneRef?: string;
+  refStrength?: number;
+}
+
+function parseImagePrompts(promptsMd: string): ParsedScene[] {
+  const scenes: ParsedScene[] = [];
   const blocks = promptsMd.split(/(?=##\s+SCENE\s+\d)/i);
 
   for (const block of blocks) {
@@ -133,7 +142,15 @@ function parseImagePrompts(promptsMd: string): Array<{ id: string; prompt: strin
     const textBlock = block.match(/\*\*텍스트\s*합성\*\*[^\n]*\n([\s\S]+?)(?=\n---|\n##|$)/i);
     const textComposite = textBlock ? parseTextComposite(textBlock[1]) : undefined;
 
-    scenes.push({ id: sceneId, prompt, negativePrompt, textComposite });
+    // Per-scene img2img reference: "**이미지 참조**: scene_01-A"
+    const refMatch = block.match(/\*\*이미지\s*참조\*\*:\s*scene[_-](\S+)/i);
+    const sceneRef = refMatch ? refMatch[1].toUpperCase().replace('_', '-') : undefined;
+
+    // Optional strength override: "**참조 강도**: 0.75"
+    const strengthMatch = block.match(/\*\*참조\s*강도\*\*:\s*([\d.]+)/i);
+    const refStrength = strengthMatch ? parseFloat(strengthMatch[1]) : undefined;
+
+    scenes.push({ id: sceneId, prompt, negativePrompt, textComposite, sceneRef, refStrength });
   }
 
   return scenes;
@@ -226,22 +243,52 @@ export async function runImageGenerator(
       ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
       : BASE_NEGATIVE;
 
+    // Resolve effective reference: per-scene ref overrides global ref
+    let effectiveImageUrl: string | null = referenceImageUrl;
+    let effectiveStrength = options?.referenceStrength ?? 0.75;
+
+    if (scene.sceneRef) {
+      const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
+      if (fs.existsSync(refPath)) {
+        emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
+        const uploaded = await uploadToFalStorage(refPath, apiKey);
+        if (uploaded) {
+          effectiveImageUrl = uploaded;
+          effectiveStrength = scene.refStrength ?? 0.75;
+          emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
+        } else {
+          emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
+          effectiveImageUrl = null;
+        }
+      } else {
+        emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
+        effectiveImageUrl = null;
+      }
+    }
+
+    // img2img uses a different endpoint and omits image_size
+    const useImg2Img = !!effectiveImageUrl;
+    const endpoint = useImg2Img
+      ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
+      : 'https://fal.run/fal-ai/flux/dev';
+
     const body: Record<string, unknown> = {
       prompt: scene.prompt,
       negative_prompt: negativePrompt,
-      image_size: imageSize,
       num_inference_steps: 35,
       guidance_scale: 5.0,
       num_images: 1,
       enable_safety_checker: true,
     };
 
-    if (referenceImageUrl) {
-      body.image_url = referenceImageUrl;
-      body.strength = options?.referenceStrength ?? 0.75;
+    if (useImg2Img) {
+      body.image_url = effectiveImageUrl;
+      body.strength = effectiveStrength;
+    } else {
+      body.image_size = imageSize;
     }
 
-    const res = await fetch('https://fal.run/fal-ai/flux/dev', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Key ${apiKey}`,
