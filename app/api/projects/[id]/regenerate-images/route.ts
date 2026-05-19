@@ -5,7 +5,7 @@ import { loadProject, readFile, updateStatus, projectDir } from '@/lib/project';
 import { findReferenceImage } from '@/lib/pipeline/image-generator';
 import { runImagesBackground } from '@/lib/pipeline';
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const project = loadProject(id);
 
@@ -22,12 +22,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  // 기존 이미지 삭제하여 재생성 강제
+  const body = await req.json().catch(() => ({}));
+  const scenes: string[] | undefined = body.scenes;
+
+  // 지정된 씬만 삭제하거나 (scenes 파라미터), 전체 삭제
   const imagesDir = path.join(projectDir(id), 'images');
   if (fs.existsSync(imagesDir)) {
     for (const file of fs.readdirSync(imagesDir)) {
       if (file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.webp')) {
-        fs.unlinkSync(path.join(imagesDir, file));
+        if (!scenes || scenes.some(s => file.startsWith(`scene_${s}`))) {
+          fs.unlinkSync(path.join(imagesDir, file));
+        }
       }
     }
   }
