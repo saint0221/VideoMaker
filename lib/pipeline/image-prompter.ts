@@ -111,7 +111,8 @@ blurry, low quality, watermark, text, nsfw, bright background, any elements
 - 한 씬에 이미지가 여러 장이면 반드시 -A, -B, -C 순서로 구분 (예: SCENE 02-A, SCENE 02-B). "CUT 1" 형식 절대 사용 금지
 - 이미지가 1장인 씬은 그냥 SCENE 01 (알파벳 붙이지 않음)
 - **클립 수 제한**: 총 이미지 슬롯 수(A/B 포함) ≤ floor(목표초 / 5). 씬 설계서에 이미 슬롯이 제한돼 있으면 그대로 따를 것
-- 프롬프트는 사진 리얼리즘 스타일 기준 (documentary style, cinematic, photorealistic)
+- 씬 설계서에 명시된 스타일(예: 카툰, 레트로, 3D, 일러스트, flat design 등)을 반드시 그대로 유지할 것 — 절대 다른 스타일로 변경하지 말 것
+- 씬 설계서에 스타일 지시가 없는 경우에만 사진 리얼리즘 스타일 기본 적용 (documentary style, cinematic, photorealistic)
 - 역사 장면은 "historical photograph aesthetic, period accurate costumes, dramatic chiaroscuro lighting" 포함
 - 인물이 등장하면 ethnicity/nationality 명시 (Korean man, Japanese woman 등)
 - 네거티브 프롬프트는 씬 특성에 맞게 구체적으로 작성 (일반적인 것 외 씬에 어울리지 않는 요소 추가)
