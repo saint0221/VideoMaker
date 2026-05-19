@@ -403,6 +403,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           setLogs(prev => [...prev, event.message]);
         } else if (event.type === 'cost') {
           setLogs(prev => [...prev, { kind: 'cost', stage: event.stage, toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost }]);
+          setProject(prev => prev ? { ...prev, costPreview: { stage: event.stage === 'image' ? 'images' : 'video', toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost } } : prev);
         } else if (event.type === 'concepts') {
           setConcepts(event.concepts);
         } else if (event.type === 'review') {
