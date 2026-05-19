@@ -490,6 +490,17 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-images`, { method: 'POST' });
   }
 
+  async function handleRegenerateOneImage(sceneId: string) {
+    setRegenerating(true);
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/regenerate-images`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenes: [sceneId] }),
+    });
+  }
+
   async function handleStartImages() {
     setLogs([]);
     connectSSE();
@@ -985,7 +996,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     alt={`씬 ${img.sceneId}`}
                     style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
                   />
-                  <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--text-muted)' }}>씬 {img.sceneId}</div>
+                  <div style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>씬 {img.sceneId}</span>
+                    <button
+                      onClick={() => handleRegenerateOneImage(img.sceneId)}
+                      disabled={regenerating || regeneratingPrompts || confirmingImages}
+                      style={{ fontSize: 11, padding: '2px 8px', cursor: 'pointer', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)' }}
+                      title="이 씬만 재생성"
+                    >↻</button>
+                  </div>
                 </div>
               ))}
             </div>
