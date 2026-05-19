@@ -408,7 +408,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         } else if (event.type === 'review') {
           setReviewData({ score: event.score, verdict: event.verdict });
         } else if (event.type === 'image') {
-          setGeneratedImages(prev => [...prev, { sceneId: event.sceneId, localPath: event.localPath }]);
+          setGeneratedImages(prev => {
+            const filtered = prev.filter(img => img.sceneId !== event.sceneId);
+            return [...filtered, { sceneId: event.sceneId, localPath: event.localPath }];
+          });
         } else if (event.type === 'error') {
           setLogs(prev => [...prev, `⚠️ ${event.message}`]);
           setProject(prev => prev ? { ...prev, status: 'error', error: event.message } : prev);
