@@ -73,13 +73,44 @@ const SYSTEM = `당신은 유튜브 영상 씬 설계 전문가입니다.
 - 이미지 프롬프트는 영문과 한글 모두 작성
 - 역사적/사실적 씬은 다큐멘터리 스타일 명시
 - 한국어로 작성 (프롬프트만 영문)
-- **클립 수 제한**: Kling 영상 API 최소 클립 길이 = 5초. 총 이미지 슬롯 수(A/B 컷 포함) ≤ floor(목표초 / 5). 목표 시간을 반드시 준수할 것
+- **클립 수 제한**: Kling 영상 API 최소 클립 길이 = 5초. 각 씬의 이미지 슬롯 수 = ceil(해당 씬 TTS 오디오 초 / 5). 아래 "TTS 실측 오디오 길이" 섹션에 씬별 계산값이 있으면 그 값을 반드시 사용할 것. 해당 섹션이 없으면 목표 시간 기준 floor(목표초 / 5)를 총 슬롯 수 상한으로 사용
 - **자막 원칙**: 프롬프트 하단에 "TTS 문장 목록"이 있으면 그 문장을 우선 사용:
   1. 해당 씬의 TTS 문장을 슬롯 수만큼 균등 배분 (앞 슬롯부터 채움)
   2. 각 슬롯의 "자막:" 필드에 배정된 문장을 원문 그대로 공백으로 이어 붙임 — 절대 요약·수정 금지
   3. 슬롯 수 > 문장 수이면 남는 슬롯의 자막은 빈 문자열("")
   TTS 문장 목록이 없으면 script-final.md 나레이션을 슬롯 수만큼 균등 분할하여 원문 그대로 입력.`;
 
+
+function parseSrtEndSeconds(content: string): number {
+  const matches = [...content.matchAll(/\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/g)];
+  if (matches.length === 0) return 0;
+  const last = matches[matches.length - 1];
+  return parseInt(last[1]) * 3600 + parseInt(last[2]) * 60 + parseInt(last[3]) + parseInt(last[4]) / 1000;
+}
+
+function readSceneAudioDurations(projectId: string): string {
+  const subtitlesDir = projectFile(projectId, 'subtitles');
+  if (!fs.existsSync(subtitlesDir)) return '';
+
+  const files = fs.readdirSync(subtitlesDir)
+    .filter(f => /^scene_\d+\.srt$/.test(f))
+    .sort();
+
+  if (files.length === 0) return '';
+
+  const lines: string[] = ['## TTS 실측 오디오 길이 (씬별 슬롯 수 계산 시 반드시 사용)', '각 씬의 이미지 슬롯 수 = ceil(TTS 오디오 길이 / 5)'];
+  for (const file of files) {
+    const m = file.match(/^scene_(\d+)\.srt$/);
+    if (!m) continue;
+    const sceneNum = m[1];
+    const content = fs.readFileSync(path.join(subtitlesDir, file), 'utf-8');
+    const duration = parseSrtEndSeconds(content);
+    const slots = Math.ceil(duration / 5);
+    lines.push(`씬 ${sceneNum}: ${duration.toFixed(2)}초 → 슬롯 ${slots}개 필요`);
+  }
+
+  return lines.join('\n');
+}
 
 function readSrtSentences(projectId: string): string {
   const subtitlesDir = projectFile(projectId, 'subtitles');
@@ -125,6 +156,9 @@ export async function runSceneDesigner(
   const srtSentences = readSrtSentences(projectId);
   const srtSection = srtSentences ? `\n\n${srtSentences}` : '';
 
+  const audioDurations = readSceneAudioDurations(projectId);
+  const audioSection = audioDurations ? `\n\n${audioDurations}` : '';
+
   const prompt = `${SYSTEM}
 
 ---
@@ -135,7 +169,7 @@ export async function runSceneDesigner(
 ${scriptMd}
 
 ## 기획서 (brief.md)
-${briefMd}${srtSection}
+${briefMd}${audioSection}${srtSection}
 
 아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
