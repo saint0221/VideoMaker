@@ -325,7 +325,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
   const [reviewData, setReviewData] = useState<{ score: number; verdict: string } | null>(null);
-  const [generatedImages, setGeneratedImages] = useState<Array<{ sceneId: string; localPath: string }>>([]);
+  const [generatedImages, setGeneratedImages] = useState<Array<{ sceneId: string; localPath: string; ts?: number }>>([]);
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const [youtubeUrlSubmitting, setYoutubeUrlSubmitting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -410,7 +410,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         } else if (event.type === 'image') {
           setGeneratedImages(prev => {
             const filtered = prev.filter(img => img.sceneId !== event.sceneId);
-            return [...filtered, { sceneId: event.sceneId, localPath: event.localPath }];
+            return [...filtered, { sceneId: event.sceneId, localPath: event.localPath, ts: Date.now() }];
           });
         } else if (event.type === 'error') {
           setLogs(prev => [...prev, `⚠️ ${event.message}`]);
@@ -995,7 +995,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               {generatedImages.map(img => (
                 <div key={img.sceneId} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
                   <img
-                    src={`/api/projects/${id}/media?file=${encodeURIComponent(img.localPath)}`}
+                    src={`/api/projects/${id}/media?file=${encodeURIComponent(img.localPath)}${img.ts ? `&t=${img.ts}` : ''}`}
                     alt={`씬 ${img.sceneId}`}
                     style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
                   />

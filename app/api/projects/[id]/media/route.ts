@@ -32,7 +32,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const contentType = MIME[ext] ?? 'application/octet-stream';
   const buffer = fs.readFileSync(filePath);
 
+  const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
   return new NextResponse(buffer, {
-    headers: { 'Content-Type': contentType },
+    headers: {
+      'Content-Type': contentType,
+      ...(isImage && { 'Cache-Control': 'no-store' }),
+    },
   });
 }
