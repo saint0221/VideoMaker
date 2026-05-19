@@ -220,7 +220,7 @@ export async function runPostScript(projectId: string) {
     // Stage 8: Image Prompter
     updateStatus(projectId, 'running:prompts');
     emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd);
+    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd);
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
@@ -422,7 +422,7 @@ export async function resumePipeline(projectId: string) {
     if (!prompts) {
       updateStatus(projectId, 'running:prompts', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:prompts' });
-      prompts = await runImagePrompter(projectId, topic, scene!);
+      prompts = await runImagePrompter(projectId, topic, scene!, script!);
       updateStatus(projectId, 'done:prompts');
       emit(projectId, { type: 'status', status: 'done:prompts' });
     }
