@@ -219,9 +219,14 @@ export async function runImageGenerator(
 
     emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 생성 중…` });
 
+    const BASE_NEGATIVE = 'screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration';
+    const negativePrompt = scene.negativePrompt
+      ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
+      : BASE_NEGATIVE;
+
     const body: Record<string, unknown> = {
       prompt: scene.prompt,
-      negative_prompt: scene.negativePrompt,
+      negative_prompt: negativePrompt,
       image_size: imageSize,
       num_inference_steps: 35,
       guidance_scale: 5.0,

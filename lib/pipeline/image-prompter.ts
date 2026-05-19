@@ -116,7 +116,21 @@ blurry, low quality, watermark, text, nsfw, bright background, any elements
 - 인물이 등장하면 ethnicity/nationality 명시 (Korean man, Japanese woman 등)
 - 네거티브 프롬프트는 씬 특성에 맞게 구체적으로 작성 (일반적인 것 외 씬에 어울리지 않는 요소 추가)
 - 한국어로 작성 (프롬프트 자체는 영문)
-- 프롬프트에 한국어 문자열 절대 포함 금지 — 텍스트가 필요하면 **텍스트 합성** 블록 사용`;
+- 프롬프트에 한국어 문자열 절대 포함 금지 — 텍스트가 필요하면 **텍스트 합성** 블록 사용
+
+⚠️ CRITICAL — 오브젝트 방향/구조 명시 규칙:
+AI 이미지 모델은 앞뒤가 다른 오브젝트(스마트폰, 노트북, 카메라, 책 등)의 방향을 자주 혼동하여 물리적으로 불가능한 구조를 생성한다.
+해당 오브젝트가 등장하는 씬은 반드시 아래 패턴으로 방향을 명시할 것:
+
+- 스마트폰: "smartphone held with touchscreen display facing [toward camera / upward / toward viewer], rear camera module on the back side pressed against the palm"
+- 노트북: "laptop screen open and facing viewer, keyboard visible on the near side, hinge at the back"
+- 카메라: "camera lens pointing away from subject toward viewer, viewfinder at the back near the eye"
+- 책/문서: "document face-up with text surface visible, cover/back side facing downward"
+- 기타: 어느 면이 카메라를 향하는지, 반대면에 무엇이 있는지 명시
+
+또한 해당 씬의 네거티브 프롬프트에 반드시 추가:
+"screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration"`;
+
 
 
 export async function runImagePrompter(
