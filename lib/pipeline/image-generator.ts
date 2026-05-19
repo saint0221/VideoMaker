@@ -55,7 +55,17 @@ async function compositeText(imagePath: string, tc: TextComposite): Promise<void
   const x = Math.round(tc.x * w);
   const y = Math.round(tc.y * h);
   const lines = tc.content.split('\n');
-  const lineHeight = Math.round(tc.size * 1.3);
+
+  // Auto-scale font size so the longest line fits within 90% of image width.
+  // Korean/CJK chars are ~1em wide; Latin chars ~0.6em. Use 0.9em as a safe average.
+  const maxWidth = Math.round(w * 0.9);
+  const longestLineLen = Math.max(...lines.map((l) => l.length), 1);
+  const estimatedWidth = longestLineLen * tc.size * 0.9;
+  const fontSize = estimatedWidth > maxWidth
+    ? Math.floor((maxWidth / (longestLineLen * 0.9)))
+    : tc.size;
+
+  const lineHeight = Math.round(fontSize * 1.3);
   const totalHeight = lineHeight * (lines.length - 1);
   const startY = y - Math.round(totalHeight / 2);
 
@@ -72,7 +82,7 @@ async function compositeText(imagePath: string, tc: TextComposite): Promise<void
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
     `<text text-anchor="middle" dominant-baseline="middle"` +
     ` font-family="${tc.font}, AppleSDGothicNeo-Bold, NanumGothic, sans-serif"` +
-    ` font-size="${tc.size}" fill="${tc.color}"` +
+    ` font-size="${fontSize}" fill="${tc.color}"` +
     ` stroke="${tc.strokeColor}" stroke-width="${tc.strokeWidth}" paint-order="stroke"` +
     `>${tspans}</text></svg>`
   );
