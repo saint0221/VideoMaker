@@ -4,7 +4,15 @@ import { runClaude } from './claude-runner';
 import { extractTargetSeconds } from './utils';
 
 const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
-씬 설계서(scene-design.md)의 각 씬 이미지 프롬프트를 FAL Flux Dev API에 최적화된 형태로 정제합니다.
+대본(script-final.md)과 씬 설계서(scene-design.md)를 함께 읽고, 두 문서의 내용과 컨셉이 일관되게 반영된 FAL Flux Dev API 최적화 이미지 프롬프트를 작성합니다.
+
+🎯 작업 순서:
+1. **대본 먼저 읽기**: 각 씬의 나레이션 내용, 감정 흐름, 이미지 힌트를 파악합니다.
+   - 나레이션이 말하는 핵심 개념이 이미지에 시각적으로 드러나야 합니다.
+   - 씬의 감정(충격, 경이, 납득 등)이 이미지 분위기와 일치해야 합니다.
+   - 대본의 **이미지 힌트** 항목은 최우선 시각 지시입니다 — 씬 설계서와 함께 반드시 반영하세요.
+2. **씬 설계서 참조**: 슬롯 구조(-A, -B 등), 구도, 편집 지시를 따릅니다.
+3. **프롬프트 작성**: 두 문서에서 추출한 정보를 종합해 일관된 이미지 프롬프트를 생성합니다.
 
 각 씬마다:
 1. 씬 번호 추출 (01, 02, 03...)
@@ -137,7 +145,8 @@ AI 이미지 모델은 앞뒤가 다른 오브젝트(스마트폰, 노트북, �
 export async function runImagePrompter(
   projectId: string,
   topic: string,
-  sceneDesignMd: string
+  sceneDesignMd: string,
+  scriptFinalMd: string
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
@@ -153,10 +162,13 @@ export async function runImagePrompter(
 
 토픽: "${topic}"${durationConstraint}
 
+## 대본 (script-final.md)
+${scriptFinalMd}
+
 ## 씬 설계서 (scene-design.md)
 ${sceneDesignMd}
 
-아래 형식에 따라 image-prompts.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
+위 대본과 씬 설계서를 함께 참고하여 각 씬의 나레이션 의도·감정·이미지 힌트가 프롬프트에 일관되게 반영되도록 image-prompts.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
   const content = await runClaude(prompt);
 
