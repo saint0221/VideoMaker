@@ -96,8 +96,8 @@ async function compositeText(imagePath: string, tc: TextComposite): Promise<void
   fs.renameSync(tmpPath, imagePath);
 }
 
-function parseImagePrompts(promptsMd: string): Array<{ id: string; prompt: string; textComposite?: TextComposite }> {
-  const scenes: Array<{ id: string; prompt: string; textComposite?: TextComposite }> = [];
+function parseImagePrompts(promptsMd: string): Array<{ id: string; prompt: string; negativePrompt?: string; textComposite?: TextComposite }> {
+  const scenes: Array<{ id: string; prompt: string; negativePrompt?: string; textComposite?: TextComposite }> = [];
   const blocks = promptsMd.split(/(?=##\s+SCENE\s+\d)/i);
 
   for (const block of blocks) {
@@ -127,10 +127,13 @@ function parseImagePrompts(promptsMd: string): Array<{ id: string; prompt: strin
     const prompt = promptMatch[1].trim();
     if (!prompt) continue;
 
+    const negativeMatch = block.match(/\*\*네거티브\*\*:\s*\n([^\n]+)/i);
+    const negativePrompt = negativeMatch ? negativeMatch[1].trim() : undefined;
+
     const textBlock = block.match(/\*\*텍스트\s*합성\*\*[^\n]*\n([\s\S]+?)(?=\n---|\n##|$)/i);
     const textComposite = textBlock ? parseTextComposite(textBlock[1]) : undefined;
 
-    scenes.push({ id: sceneId, prompt, textComposite });
+    scenes.push({ id: sceneId, prompt, negativePrompt, textComposite });
   }
 
   return scenes;
@@ -218,9 +221,10 @@ export async function runImageGenerator(
 
     const body: Record<string, unknown> = {
       prompt: scene.prompt,
+      negative_prompt: scene.negativePrompt,
       image_size: imageSize,
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
+      num_inference_steps: 35,
+      guidance_scale: 5.0,
       num_images: 1,
       enable_safety_checker: true,
     };
