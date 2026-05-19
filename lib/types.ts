@@ -25,9 +25,11 @@ export type PipelineStatus =
   | 'running:prompts'
   | 'done:prompts'
   | 'waiting:reference'
+  | 'waiting:cost-images'
   | 'running:images'
   | 'done:images'
   | 'waiting:images'
+  | 'waiting:cost-video'
   | 'running:video'
   | 'done:video'
   | 'running:capcut'
@@ -57,6 +59,7 @@ export interface Project {
   capcutDraftId?: string;
   capcutTimelineId?: string;
   aspectRatio?: '16:9' | '9:16';
+  costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
 }
 
 export interface CostLogEntry {

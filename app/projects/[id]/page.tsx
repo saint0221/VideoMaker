@@ -99,7 +99,7 @@ function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isR
   return String(stageIndex + 1);
 }
 
-const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:reference', 'waiting:images'];
+const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:reference', 'waiting:cost-images', 'waiting:images', 'waiting:cost-video'];
 
 function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; paused: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
@@ -403,6 +403,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           setLogs(prev => [...prev, event.message]);
         } else if (event.type === 'cost') {
           setLogs(prev => [...prev, { kind: 'cost', stage: event.stage, toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost }]);
+          setProject(prev => prev ? { ...prev, costPreview: { stage: event.stage === 'image' ? 'images' : 'video', toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost } } : prev);
         } else if (event.type === 'concepts') {
           setConcepts(event.concepts);
         } else if (event.type === 'review') {
@@ -475,14 +476,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   async function handleImagesConfirm() {
     setConfirmingImages(true);
-    setLogs([]);
-    connectSSE();
     const res = await fetch(`/api/projects/${id}/confirm-images`, { method: 'POST' });
     if (res.ok) {
-      setProject(prev => prev ? { ...prev, status: 'running:video' } : prev);
-    } else {
-      setConfirmingImages(false);
+      const data = await res.json() as { costPreview?: Project['costPreview'] };
+      setProject(prev => prev ? { ...prev, status: 'waiting:cost-video', costPreview: data.costPreview } : prev);
     }
+    setConfirmingImages(false);
   }
 
   async function handleRegenerateImages() {
@@ -505,9 +504,24 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleStartImages() {
+    const res = await fetch(`/api/projects/${id}/start-images`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json() as { costPreview?: Project['costPreview'] };
+      setProject(prev => prev ? { ...prev, status: 'waiting:cost-images', costPreview: data.costPreview } : prev);
+    }
+  }
+
+  async function handleConfirmCost(stage: 'images' | 'video') {
     setLogs([]);
     connectSSE();
-    await fetch(`/api/projects/${id}/start-images`, { method: 'POST' });
+    const res = await fetch(`/api/projects/${id}/confirm-cost`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage }),
+    });
+    if (res.ok) {
+      setProject(prev => prev ? { ...prev, status: stage === 'images' ? 'running:images' : 'running:video', costPreview: undefined } : prev);
+    }
   }
 
   async function handleReferenceUpload(file: File) {
@@ -538,14 +552,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   async function handleUseExistingImages() {
     setConfirmingImages(true);
-    setLogs([]);
-    connectSSE();
     const res = await fetch(`/api/projects/${id}/use-existing-images`, { method: 'POST' });
     if (res.ok) {
-      setProject(prev => prev ? { ...prev, status: 'running:video' } : prev);
-    } else {
-      setConfirmingImages(false);
+      const data = await res.json() as { costPreview?: Project['costPreview'] };
+      setProject(prev => prev ? { ...prev, status: 'waiting:cost-video', costPreview: data.costPreview } : prev);
     }
+    setConfirmingImages(false);
   }
 
   async function handleYoutubeUrls(urls: string[]) {
@@ -621,18 +633,21 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const isWaitingConcept = project.status === 'waiting:concept';
   const isWaitingConfirm = project.status === 'waiting:confirm';
   const isWaitingReference = project.status === 'waiting:reference';
+  const isWaitingCostImages = project.status === 'waiting:cost-images';
   const isWaitingImages = project.status === 'waiting:images';
+  const isWaitingCostVideo = project.status === 'waiting:cost-video';
   const isCompleted = project.status === 'completed';
   const isError = project.status === 'error';
   const isRunning = project.status?.startsWith('running:') ?? false;
 
-  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:reference', 'running:images'];
+  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:reference', 'waiting:cost-images', 'running:images'];
   const isErrorInImagePhase = isError && !!project.lastStatus && IMAGE_PHASE_STATUSES.includes(project.lastStatus);
   const showStartImages = isWaitingReference || isErrorInImagePhase;
-  const VIDEO_OR_LATER: PipelineStatus[] = ['running:video', 'done:video', 'running:capcut', 'completed'];
+  const VIDEO_OR_LATER: PipelineStatus[] = ['waiting:cost-video', 'running:video', 'done:video', 'running:capcut', 'completed'];
   const showUseExistingImages =
     generatedImages.length > 0 &&
     !isWaitingImages &&
+    !isWaitingCostVideo &&
     !isRunning &&
     !VIDEO_OR_LATER.includes(project.status);
 
@@ -981,6 +996,34 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
+      {/* Image cost preview gate */}
+      {isWaitingCostImages && project.costPreview && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+            이미지 생성 예상 비용
+          </h3>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}>
+              <span style={{ color: 'var(--text-muted)' }}>생성할 이미지</span>
+              <span>{project.costPreview.toGenerate}장 × ${project.costPreview.costPerUnit}</span>
+            </div>
+            {project.costPreview.skipped > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6, color: 'var(--text-muted)' }}>
+                <span>이미 생성됨 (건너뜀)</span>
+                <span>{project.costPreview.skipped}장</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <span>예상 총 비용</span>
+              <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={() => handleConfirmCost('images')}>
+            확인 — 이미지 생성 시작
+          </button>
+        </div>
+      )}
+
       {/* Image confirmation gate */}
       {isWaitingImages && (
         <div className="card" style={{ marginBottom: 24 }}>
@@ -1034,6 +1077,34 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               이미지를 먼저 생성해주세요
             </p>
           )}
+        </div>
+      )}
+
+      {/* Video cost preview gate */}
+      {isWaitingCostVideo && project.costPreview && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+            영상 생성 예상 비용
+          </h3>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}>
+              <span style={{ color: 'var(--text-muted)' }}>생성할 클립</span>
+              <span>{project.costPreview.toGenerate}개 × ${project.costPreview.costPerUnit}</span>
+            </div>
+            {project.costPreview.skipped > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6, color: 'var(--text-muted)' }}>
+                <span>이미 생성됨 (건너뜀)</span>
+                <span>{project.costPreview.skipped}개</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <span>예상 총 비용</span>
+              <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={() => handleConfirmCost('video')}>
+            확인 — 영상 생성 시작
+          </button>
         </div>
       )}
 

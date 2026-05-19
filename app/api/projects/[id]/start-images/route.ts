@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, readFile, updateStatus } from '@/lib/project';
-import { findReferenceImage } from '@/lib/pipeline/image-generator';
-import { runImagesBackground } from '@/lib/pipeline';
+import { findReferenceImage, calcImageCost } from '@/lib/pipeline/image-generator';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,12 +25,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  if (isImageStageError) {
-    updateStatus(id, 'waiting:reference', { error: undefined });
-  }
+  const cost = calcImageCost(id, promptsMd);
+  const costPreview = { stage: 'images' as const, ...cost };
+  updateStatus(id, 'waiting:cost-images', { costPreview, error: undefined });
 
-  const referenceImagePath = findReferenceImage(id) ?? undefined;
-  runImagesBackground(id, promptsMd, referenceImagePath);
-
-  return NextResponse.json({ started: true });
+  return NextResponse.json({ costPreview });
 }

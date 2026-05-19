@@ -90,6 +90,37 @@ async function generateVideo(
   throw new Error('Kling 타임아웃 (15분)');
 }
 
+export function calcVideoCost(projectId: string): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
+  const imagesDir = projectFile(projectId, 'images');
+  const videosDir = projectFile(projectId, 'videos');
+  const imageFiles = fs.existsSync(imagesDir)
+    ? fs.readdirSync(imagesDir).filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f)).sort()
+    : [];
+
+  const sceneGroups = new Map<string, string[]>();
+  for (const f of imageFiles) {
+    const m = f.match(/^scene_(\d+)/);
+    if (!m) continue;
+    const num = m[1];
+    if (!sceneGroups.has(num)) sceneGroups.set(num, []);
+    sceneGroups.get(num)!.push(f);
+  }
+
+  let toGenerate = 0;
+  let skipped = 0;
+  for (const [sceneNum, imgs] of sceneGroups) {
+    for (let i = 0; i < imgs.length; i++) {
+      const suffix = String.fromCharCode(65 + i);
+      const fileName = `scene_${sceneNum}-${suffix}.mp4`;
+      if (fs.existsSync(path.join(videosDir, fileName))) skipped++;
+      else toGenerate++;
+    }
+  }
+
+  const COST_PER_CLIP = 0.71;
+  return { toGenerate, skipped, costPerUnit: COST_PER_CLIP, totalCost: +(toGenerate * COST_PER_CLIP).toFixed(4) };
+}
+
 export async function runVideoGenerator(projectId: string): Promise<void> {
   const apiKey = process.env.FAL_API_KEY;
   if (!apiKey) {
