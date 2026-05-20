@@ -24,7 +24,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const researchMd = readFile(id, 'research.md');
       if (!researchMd) throw new Error('research.md를 찾을 수 없습니다.');
 
-      const strategyMd = await runStrategist(id, project.topic, researchMd);
+      const youtubeAnalysisMd = readFile(id, 'youtube-analysis.md') ?? undefined;
+      const strategyMd = await runStrategist(id, project.topic, researchMd, youtubeAnalysisMd);
       const concepts = parseConcepts(strategyMd);
 
       updateStatus(id, 'waiting:concept', { concepts });

@@ -144,7 +144,7 @@ function FileLink({ projectId, file, label }: { projectId: string; file: string;
   );
 }
 
-function ConceptSelector({ concepts, onSelect, onRegenerate }: { concepts: Concept[]; onSelect: (i: number) => void; onRegenerate: () => void }) {
+function ConceptSelector({ concepts, onSelect, onRegenerate, regenerating }: { concepts: Concept[]; onSelect: (i: number) => void; onRegenerate: () => void; regenerating?: boolean }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -157,10 +157,10 @@ function ConceptSelector({ concepts, onSelect, onRegenerate }: { concepts: Conce
         <button
           className="btn btn-outline"
           style={{ fontSize: 12, padding: '4px 12px' }}
-          disabled={submitting}
+          disabled={submitting || regenerating}
           onClick={onRegenerate}
         >
-          ↻ 다시 제안받기
+          {regenerating ? '⏳ 생성 중…' : '↻ 다시 제안받기'}
         </button>
       </div>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
@@ -329,6 +329,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const [youtubeUrlSubmitting, setYoutubeUrlSubmitting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [regeneratingConcepts, setRegeneratingConcepts] = useState(false);
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
@@ -406,6 +407,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           setProject(prev => prev ? { ...prev, costPreview: { stage: event.stage === 'image' ? 'images' : 'video', toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost } } : prev);
         } else if (event.type === 'concepts') {
           setConcepts(event.concepts);
+          setRegeneratingConcepts(false);
         } else if (event.type === 'review') {
           setReviewData({ score: event.score, verdict: event.verdict });
         } else if (event.type === 'image') {
@@ -451,9 +453,22 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleRegenerateConcepts() {
+    if (regeneratingConcepts) return;
+    setRegeneratingConcepts(true);
     setLogs([]);
     connectSSE();
-    await fetch(`/api/projects/${id}/regenerate-concepts`, { method: 'POST' });
+    try {
+      const res = await fetch(`/api/projects/${id}/regenerate-concepts`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setLogs(prev => [...prev, `❌ 컨셉 재생성 실패: ${body.error ?? res.status}`]);
+        setRegeneratingConcepts(false);
+      }
+      // 성공 시 SSE concepts 이벤트 수신 후 setRegeneratingConcepts(false) 처리
+    } catch {
+      setLogs(prev => [...prev, '❌ 컨셉 재생성 요청 실패']);
+      setRegeneratingConcepts(false);
+    }
   }
 
   async function handleConfirm() {
@@ -895,7 +910,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {/* Concept selection gate */}
       {isWaitingConcept && concepts && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <ConceptSelector concepts={concepts} onSelect={handleConceptSelect} onRegenerate={handleRegenerateConcepts} />
+          <ConceptSelector concepts={concepts} onSelect={handleConceptSelect} onRegenerate={handleRegenerateConcepts} regenerating={regeneratingConcepts} />
         </div>
       )}
 
