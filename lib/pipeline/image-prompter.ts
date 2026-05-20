@@ -75,9 +75,22 @@ FAL Flux Dev(및 모든 AI 이미지 생성 모델)는 한국어, 중국어, 일
 - 테두리: "색상 두께px" 형식. 기본 #000000 2px
 - 폰트: 기본 sans-serif (한국어 폰트 자동 적용됨)
 
+## CHARACTER_ANCHOR (캐릭터 일관성 앵커)
+image-prompts.md 맨 위(첫 SCENE 섹션 이전)에 반드시 포함:
+- 대본/씬 설계서에서 등장하는 인물의 외형을 영문으로 구체적으로 기술 (나이, 성별, 얼굴 특징, 머리색, 복장 등)
+- 인물이 2명 이상이면 각각 "Main character:", "Secondary character:" 등으로 구분
+- 인물이 없는 영상(자연/배경/추상)이면 "N/A" 한 줄
+- 이 앵커는 모든 씬 프롬프트 앞에 자동 삽입되므로 씬별 프롬프트에서 인물 외형을 반복하지 않아도 됨
+- 영문 50~100단어/인물
+
 출력 형식 (image-prompts.md):
 \`\`\`
 # 이미지 생성 프롬프트: {토픽}
+
+## CHARACTER_ANCHOR
+Main character: Korean male in his early 50s, weathered face with sharp cheekbones, short salt-and-pepper hair neatly combed back, wearing a dark navy joseon-era official robe with gold collar embroidery, calm and authoritative bearing, dignified posture.
+
+---
 
 ## SCENE 01
 **프롬프트 (영문)**:
