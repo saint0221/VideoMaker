@@ -117,7 +117,7 @@ export function calcVideoCost(projectId: string): { toGenerate: number; skipped:
     }
   }
 
-  const COST_PER_CLIP = 0.71;
+  const COST_PER_CLIP = 0.28;
   return { toGenerate, skipped, costPerUnit: COST_PER_CLIP, totalCost: +(toGenerate * COST_PER_CLIP).toFixed(4) };
 }
 
@@ -177,7 +177,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
       }
     }
   }
-  const COST_PER_CLIP = 0.71;
+  const COST_PER_CLIP = 0.28;
   const videoCostEntry = {
     timestamp: new Date().toISOString(),
     projectId,
