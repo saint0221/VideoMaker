@@ -105,6 +105,13 @@ interface ParsedScene {
   refStrength?: number;
 }
 
+function parseCharacterAnchor(promptsMd: string): string | null {
+  const match = promptsMd.match(/##\s*CHARACTER_ANCHOR\s*\n([\s\S]+?)(?=\n---|\n##\s+SCENE)/i);
+  if (!match) return null;
+  const anchor = match[1].trim();
+  return anchor && anchor !== 'N/A' ? anchor : null;
+}
+
 function parseImagePrompts(promptsMd: string): ParsedScene[] {
   const scenes: ParsedScene[] = [];
   const blocks = promptsMd.split(/(?=##\s+SCENE\s+\d)/i);
@@ -202,6 +209,11 @@ export async function runImageGenerator(
     return;
   }
 
+  const characterAnchor = parseCharacterAnchor(promptsMd);
+  if (characterAnchor) {
+    emit(projectId, { type: 'log', message: '  🎭 캐릭터 앵커 적용 — 모든 씬에 일관된 인물 묘사 삽입' });
+  }
+
   let referenceImageUrl: string | null = null;
   if (options?.referenceImagePath) {
     emit(projectId, { type: 'log', message: '  📎 레퍼런스 이미지 업로드 중…' });
@@ -282,8 +294,12 @@ export async function runImageGenerator(
       ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
       : 'https://fal.run/fal-ai/flux/dev';
 
+    const finalPrompt = characterAnchor
+      ? `${characterAnchor}\n\n${scene.prompt}`
+      : scene.prompt;
+
     const body: Record<string, unknown> = {
-      prompt: scene.prompt,
+      prompt: finalPrompt,
       negative_prompt: negativePrompt,
       num_inference_steps: 35,
       guidance_scale: 5.0,
