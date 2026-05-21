@@ -223,13 +223,13 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
   projectId: string;
   score: number;
   verdict: string;
-  onConfirm: () => Promise<string | null>;
+  onConfirm: (force?: boolean) => Promise<{ error?: string; hasRevisions?: boolean } | null>;
   onApplyReview: () => void;
 }) {
   const [content, setContent] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<{ message: string; hasRevisions: boolean } | null>(null);
   const [tab, setTab] = useState<'review' | 'script'>('review');
 
   useEffect(() => {
@@ -303,7 +303,7 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
           fontSize: 13,
           marginBottom: 12,
         }}>
-          {confirmError}
+          {confirmError.message}
         </div>
       )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -313,15 +313,29 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
           onClick={async () => {
             setConfirming(true);
             setConfirmError(null);
-            const err = await onConfirm();
-            if (err) {
-              setConfirmError(err);
+            const result = await onConfirm();
+            if (result?.error) {
+              setConfirmError({ message: result.error, hasRevisions: result.hasRevisions ?? false });
               setConfirming(false);
             }
           }}
         >
           {confirming ? '처리중…' : '✓ 대본 확정'}
         </button>
+        {confirmError?.hasRevisions && (
+          <button
+            className="btn btn-outline"
+            disabled={confirming || applying}
+            style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
+            onClick={async () => {
+              setConfirming(true);
+              setConfirmError(null);
+              await onConfirm(true);
+            }}
+          >
+            ⚠️ 필수 수정 무시하고 강제 확정
+          </button>
+        )}
         <button
           className="btn btn-outline"
           disabled={confirming || applying}
@@ -498,11 +512,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  async function handleConfirm(): Promise<string | null> {
-    const res = await fetch(`/api/projects/${id}/confirm`, { method: 'POST' });
+  async function handleConfirm(force = false): Promise<{ error?: string; hasRevisions?: boolean } | null> {
+    const url = force ? `/api/projects/${id}/confirm?force=true` : `/api/projects/${id}/confirm`;
+    const res = await fetch(url, { method: 'POST' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return (body as { error?: string }).error ?? '대본 확정에 실패했습니다.';
+      return body as { error?: string; hasRevisions?: boolean };
     }
     setLogs([]);
     connectSSE();
