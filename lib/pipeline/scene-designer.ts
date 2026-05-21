@@ -173,7 +173,7 @@ ${briefMd}${audioSection}${srtSection}
 
 아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
-  const content = await runClaude(prompt, { model: MODEL.SONNET });
+  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!content) {
     throw new Error('씬 설계자가 scene-design.md 내용을 생성하지 못했습니다.');

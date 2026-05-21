@@ -116,7 +116,7 @@ ${briefMd}
 ${factCheckSection}
 위 형식에 맞게 검수 결과만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const reviewContent = await runClaude(prompt, { model: MODEL.SONNET });
+  const reviewContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!reviewContent) {
     throw new Error('검수자가 script-review.md 내용을 생성하지 못했습니다.');

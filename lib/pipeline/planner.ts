@@ -87,7 +87,7 @@ ${researchMd}
 
 위 형식에 맞게 기획서 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const briefContent = await runClaude(prompt, { model: MODEL.SONNET });
+  const briefContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!briefContent) {
     throw new Error('기획자가 brief.md 내용을 생성하지 못했습니다.');

@@ -1,8 +1,16 @@
 import { spawn } from 'child_process';
 import Anthropic from '@anthropic-ai/sdk';
+import { emit } from '../events';
+import { addLlmCost } from '../project';
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/hongss/.local/bin/claude';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+const PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
+  'claude-opus-4-7-20251101': { inputPerMTok: 15, outputPerMTok: 75 },
+  'claude-sonnet-4-6': { inputPerMTok: 3, outputPerMTok: 15 },
+  'claude-haiku-4-5-20251001': { inputPerMTok: 0.8, outputPerMTok: 4 },
+};
 
 export const MODEL = {
   OPUS: 'claude-opus-4-7',
@@ -10,7 +18,7 @@ export const MODEL = {
   HAIKU: 'claude-haiku-4-5-20251001',
 } as const;
 
-async function runClaudeSDK(prompt: string, timeoutMs: number, model: string): Promise<string> {
+async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, projectId?: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
 
@@ -28,6 +36,23 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string): P
       },
       { signal: controller.signal }
     );
+
+    if (projectId) {
+      const usage = message.usage;
+      const pricing = PRICING[model] ?? { inputPerMTok: 3, outputPerMTok: 15 };
+      const costUsd =
+        (usage.input_tokens / 1_000_000) * pricing.inputPerMTok +
+        (usage.output_tokens / 1_000_000) * pricing.outputPerMTok;
+      const totalUsd = addLlmCost(projectId, costUsd);
+      emit(projectId, {
+        type: 'llm-cost',
+        model,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        costUsd,
+        totalUsd,
+      });
+    }
 
     const block = message.content[0];
     if (block.type !== 'text') throw new Error('예상치 못한 응답 타입');
@@ -88,12 +113,12 @@ async function runCLI(prompt: string, timeoutMs: number, model: string): Promise
 
 export async function runClaude(
   prompt: string,
-  options?: { timeoutMs?: number; model?: string }
+  options?: { timeoutMs?: number; model?: string; projectId?: string }
 ): Promise<string> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS } = options ?? {};
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS, projectId } = options ?? {};
 
   if (process.env.ANTHROPIC_API_KEY) {
-    return runClaudeSDK(prompt, timeoutMs, model);
+    return runClaudeSDK(prompt, timeoutMs, model, projectId);
   }
   return runCLI(prompt, timeoutMs, model);
 }

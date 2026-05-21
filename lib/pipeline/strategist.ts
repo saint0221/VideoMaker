@@ -89,7 +89,7 @@ ${researchMd}
 ${youtubeSection}
 위 형식에 맞게 전략 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const strategyContent = await runClaude(prompt, { model: MODEL.OPUS });
+  const strategyContent = await runClaude(prompt, { model: MODEL.OPUS, projectId });
 
   if (!strategyContent) {
     throw new Error('전략가가 strategy.md 내용을 생성하지 못했습니다.');

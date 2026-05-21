@@ -150,7 +150,7 @@ ${reviewMd}
 ===대본 끝===
 `;
 
-  const revised = await runClaude(prompt, { model: MODEL.OPUS });
+  const revised = await runClaude(prompt, { model: MODEL.OPUS, projectId });
 
   if (!revised) {
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');

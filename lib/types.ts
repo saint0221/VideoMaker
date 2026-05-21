@@ -60,6 +60,7 @@ export interface Project {
   capcutTimelineId?: string;
   aspectRatio?: '16:9' | '9:16';
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
+  llmCostUsd?: number;
 }
 
 export interface CostLogEntry {
@@ -76,6 +77,7 @@ export type SSEEvent =
   | { type: 'status'; status: PipelineStatus }
   | { type: 'log'; message: string }
   | { type: 'cost'; stage: 'image' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number }
+  | { type: 'llm-cost'; model: string; inputTokens: number; outputTokens: number; costUsd: number; totalUsd: number }
   | { type: 'concepts'; concepts: Concept[] }
   | { type: 'review'; score: number; verdict: string }
   | { type: 'image'; sceneId: string; localPath: string }

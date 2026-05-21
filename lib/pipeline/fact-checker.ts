@@ -52,7 +52,7 @@ ${scriptMd}
 - 확인: N개 / 불확실: N개 / 오류: N개
 - 종합 의견: ...`;
 
-  const factCheckContent = await runClaude(prompt, { model: MODEL.SONNET });
+  const factCheckContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!factCheckContent) {
     throw new Error('팩트 체커가 결과를 생성하지 못했습니다.');

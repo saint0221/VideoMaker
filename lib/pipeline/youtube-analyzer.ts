@@ -117,7 +117,7 @@ ${searchSection}
 - 최적 접근 각도: ...
 - 제목 방향성: ...`;
 
-  const analysisContent = await runClaude(prompt, { model: MODEL.SONNET });
+  const analysisContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!analysisContent) {
     const fallback = `# 유튜브 레퍼런스 분석: ${topic}\n\n(분석 결과 없음 — 검색 데이터 부족)`;

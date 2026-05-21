@@ -340,6 +340,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [hasSubtitles, setHasSubtitles] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [silentSec, setSilentSec] = useState(0);
+  const [llmCostUsd, setLlmCostUsd] = useState(0);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
   const stageStartRef = useRef<number>(Date.now());
@@ -354,6 +355,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         if (p.reviewScore !== undefined && p.reviewVerdict) {
           setReviewData({ score: p.reviewScore, verdict: p.reviewVerdict });
         }
+        if (p.llmCostUsd) setLlmCostUsd(p.llmCostUsd);
         if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
           connectSSE();
         }
@@ -405,6 +407,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         } else if (event.type === 'cost') {
           setLogs(prev => [...prev, { kind: 'cost', stage: event.stage, toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost }]);
           setProject(prev => prev ? { ...prev, costPreview: { stage: event.stage === 'image' ? 'images' : 'video', toGenerate: event.toGenerate, skipped: event.skipped, costPerUnit: event.costPerUnit, totalCost: event.totalCost } } : prev);
+        } else if (event.type === 'llm-cost') {
+          setLlmCostUsd(event.totalUsd);
+          setProject(prev => prev ? { ...prev, llmCostUsd: event.totalUsd } : prev);
         } else if (event.type === 'concepts') {
           setConcepts(event.concepts);
           setRegeneratingConcepts(false);
@@ -785,7 +790,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     <span className="status-dot status-dot-running" />
                     <span style={{ fontWeight: 700, color: 'var(--success)', fontSize: 14 }}>실행 중 · {formatSec(elapsedSec)} 경과</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--accent)' }}>실시간 업데이트</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {llmCostUsd > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>LLM ${llmCostUsd.toFixed(4)}</span>
+                    )}
+                    <span style={{ fontSize: 11, color: 'var(--accent)' }}>실시간 업데이트</span>
+                  </div>
                 </div>
                 {lastLogStr && (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1122,10 +1132,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="card" style={{ marginBottom: 24, borderColor: 'rgba(74,222,128,0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <span style={{ fontSize: 24 }}>🎉</span>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: 16 }}>제작 완료!</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>모든 파일이 준비되었습니다</div>
             </div>
+            {llmCostUsd > 0 && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LLM 비용</div>
+                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text)' }}>${llmCostUsd.toFixed(4)}</div>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             <FileLink projectId={id} file="script-final.md" label="최종 대본" />

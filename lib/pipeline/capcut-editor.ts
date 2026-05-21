@@ -201,7 +201,8 @@ function computeSlotTimingsDeterministic(
 async function computeSlotTimings(
   slots: Array<{ slotId: string; desc: string }>,
   srtEntries: SrtEntry[],
-  totalDuration: number
+  totalDuration: number,
+  projectId?: string
 ): Promise<Map<string, { start: number; end: number }> | null> {
   if (slots.length === 0 || srtEntries.length === 0) return null;
 
@@ -231,7 +232,7 @@ JSON 형식으로만 응답 (다른 텍스트 없이):
 
   let raw: string;
   try {
-    raw = await runClaude(prompt, { timeoutMs: 60_000, model: MODEL.SONNET });
+    raw = await runClaude(prompt, { timeoutMs: 60_000, model: MODEL.SONNET, projectId });
   } catch {
     return null;
   }
@@ -914,7 +915,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
           if (deterministic) return deterministic;
           // Deterministic failed → fall back to LLM with sentence-level SRT (cleaner input)
           emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${s.id} 결정론적 매핑 실패 — LLM 매핑 시도` });
-          return computeSlotTimings(slots, sentEntries, s.duration);
+          return computeSlotTimings(slots, sentEntries, s.duration, projectId);
         }
       }
 
@@ -923,7 +924,7 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       const srtContent = fs.readFileSync(s.srtFile, 'utf-8');
       const srtEntries = parseSrt(srtContent);
       if (srtEntries.length === 0) return null;
-      return computeSlotTimings(slots, srtEntries, s.duration);
+      return computeSlotTimings(slots, srtEntries, s.duration, projectId);
     })
   );
 

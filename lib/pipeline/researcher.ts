@@ -86,7 +86,7 @@ export async function runResearcher(projectId: string, topic: string): Promise<s
 
   const prompt = `${SYSTEM}\n\n---\n\n토픽: "${topic}"${searchSection}\n\n위 형식에 맞게 리서치 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const researchContent = await runClaude(prompt, { model: MODEL.SONNET });
+  const researchContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
 
   if (!researchContent) {
     throw new Error('리서처가 research.md 내용을 생성하지 못했습니다.');

@@ -116,6 +116,14 @@ export function listFiles(id: string, subdir: string): string[] {
   return fs.readdirSync(dir).sort();
 }
 
+export function addLlmCost(id: string, costUsd: number): number {
+  const project = loadProject(id);
+  if (!project) return costUsd;
+  project.llmCostUsd = (project.llmCostUsd ?? 0) + costUsd;
+  saveProject(project);
+  return project.llmCostUsd;
+}
+
 export function updateStatus(id: string, status: PipelineStatus, extra?: Partial<Project>) {
   const project = loadProject(id);
   if (!project) throw new Error(`Project ${id} not found`);
