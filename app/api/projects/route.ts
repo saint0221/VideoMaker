@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createProject, listProjects, projectDir } from '@/lib/project';
 import { s3Enabled, listProjectIdsFromS3, downloadFromS3 } from '@/lib/s3';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   if (s3Enabled()) {
     const localIds = new Set(listProjects().map((p) => p.id));
