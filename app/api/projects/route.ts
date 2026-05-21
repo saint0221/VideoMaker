@@ -23,7 +23,9 @@ export async function GET() {
         })
     );
   }
-  return NextResponse.json(listProjects());
+  return NextResponse.json(listProjects(), {
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }
 
 export async function POST(req: NextRequest) {
