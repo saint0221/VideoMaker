@@ -67,7 +67,7 @@ async function runCLI(prompt: string, timeoutMs: number, model: string): Promise
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model], {
+    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model, '--max-tokens', '16000'], {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
