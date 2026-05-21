@@ -434,8 +434,10 @@ export async function resumePipeline(projectId: string) {
         emit(projectId, { type: 'status', status: 'waiting:images' });
         emit(projectId, { type: 'done' });
       } else {
-        updateStatus(projectId, 'waiting:reference', { error: undefined });
-        emit(projectId, { type: 'status', status: 'waiting:reference' });
+        const costPreview = calcImageCost(projectId, prompts!);
+        updateStatus(projectId, 'waiting:cost-images', { error: undefined, costPreview: { stage: 'images', ...costPreview } });
+        emit(projectId, { type: 'status', status: 'waiting:cost-images' });
+        emit(projectId, { type: 'cost', stage: 'image', ...costPreview });
         emit(projectId, { type: 'done' });
       }
       return;
