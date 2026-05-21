@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 function extractFinalScript(output: string): string {
   const sentinelMatch = output.match(/===대본 시작===\r?\n([\s\S]+?)\r?\n===대본 끝===/);
@@ -79,7 +79,7 @@ ${reviewMd}
 ===대본 끝===
 `;
 
-  const revised = await runClaude(prompt);
+  const revised = await runClaude(prompt, { model: MODEL.OPUS });
 
   if (!revised) {
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');

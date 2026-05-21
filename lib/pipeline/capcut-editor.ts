@@ -1,7 +1,7 @@
 import { emit } from '../events';
 import { projectDir, loadProject, saveProject } from '../project';
 import { loadSettings } from '../settings';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -231,7 +231,7 @@ JSON 형식으로만 응답 (다른 텍스트 없이):
 
   let raw: string;
   try {
-    raw = await runClaude(prompt, { timeoutMs: 60_000 });
+    raw = await runClaude(prompt, { timeoutMs: 60_000, model: MODEL.HAIKU });
   } catch {
     return null;
   }

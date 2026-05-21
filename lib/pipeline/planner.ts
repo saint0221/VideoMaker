@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 const SYSTEM = `당신은 유튜브 영상 기획 전문가입니다.
 선택된 컨셉을 바탕으로 대본 작가가 바로 쓸 수 있는 기획서(brief.md)를 작성합니다.
@@ -87,7 +87,7 @@ ${researchMd}
 
 위 형식에 맞게 기획서 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const briefContent = await runClaude(prompt);
+  const briefContent = await runClaude(prompt, { model: MODEL.SONNET });
 
   if (!briefContent) {
     throw new Error('기획자가 brief.md 내용을 생성하지 못했습니다.');

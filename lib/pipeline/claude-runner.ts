@@ -4,7 +4,13 @@ import Anthropic from '@anthropic-ai/sdk';
 const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/hongss/.local/bin/claude';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
-async function runClaudeSDK(prompt: string, timeoutMs: number): Promise<string> {
+export const MODEL = {
+  OPUS: 'claude-opus-4-7-20251101',
+  SONNET: 'claude-sonnet-4-6',
+  HAIKU: 'claude-haiku-4-5-20251001',
+} as const;
+
+async function runClaudeSDK(prompt: string, timeoutMs: number, model: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
 
@@ -16,7 +22,7 @@ async function runClaudeSDK(prompt: string, timeoutMs: number): Promise<string> 
   try {
     const message = await client.messages.create(
       {
-        model: 'claude-opus-4-7-20251101',
+        model,
         max_tokens: 16000,
         messages: [{ role: 'user', content: prompt }],
       },
@@ -31,12 +37,12 @@ async function runClaudeSDK(prompt: string, timeoutMs: number): Promise<string> 
   }
 }
 
-async function runCLI(prompt: string, timeoutMs: number): Promise<string> {
+async function runCLI(prompt: string, timeoutMs: number, model: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions'], {
+    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model], {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -82,12 +88,12 @@ async function runCLI(prompt: string, timeoutMs: number): Promise<string> {
 
 export async function runClaude(
   prompt: string,
-  options?: { timeoutMs?: number }
+  options?: { timeoutMs?: number; model?: string }
 ): Promise<string> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS } = options ?? {};
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS } = options ?? {};
 
   if (process.env.ANTHROPIC_API_KEY) {
-    return runClaudeSDK(prompt, timeoutMs);
+    return runClaudeSDK(prompt, timeoutMs, model);
   }
-  return runCLI(prompt, timeoutMs);
+  return runCLI(prompt, timeoutMs, model);
 }
