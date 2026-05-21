@@ -417,7 +417,7 @@ export async function resumePipeline(projectId: string) {
     if (!prompts) {
       updateStatus(projectId, 'running:prompts', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:prompts' });
-      prompts = await runImagePrompter(projectId, topic, scene!, script!);
+      prompts = await runImagePrompter(projectId, topic, scene!, script!, findReferenceImage(projectId) ?? undefined);
       updateStatus(projectId, 'done:prompts');
       emit(projectId, { type: 'status', status: 'done:prompts' });
     }
