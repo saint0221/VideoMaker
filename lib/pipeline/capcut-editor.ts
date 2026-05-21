@@ -231,7 +231,7 @@ JSON 형식으로만 응답 (다른 텍스트 없이):
 
   let raw: string;
   try {
-    raw = await runClaude(prompt, { timeoutMs: 60_000, model: MODEL.HAIKU });
+    raw = await runClaude(prompt, { timeoutMs: 60_000, model: MODEL.SONNET });
   } catch {
     return null;
   }
