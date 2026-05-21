@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectFile } from '@/lib/project';
+import { downloadFromS3 } from '@/lib/s3';
 import fs from 'fs';
 import path from 'path';
 
@@ -24,16 +25,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const normalized = path.normalize(file).replace(/^(\.\.[/\\])+/, '');
   const filePath = projectFile(id, normalized);
 
-  if (!fs.existsSync(filePath)) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentType = MIME[ext] ?? 'application/octet-stream';
+  const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
+
+  let buffer: Buffer | null = null;
+
+  if (fs.existsSync(filePath)) {
+    buffer = fs.readFileSync(filePath);
+  } else {
+    buffer = await downloadFromS3(id, normalized);
+    if (buffer) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, buffer);
+    }
+  }
+
+  if (!buffer) {
     return NextResponse.json({ error: '파일을 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME[ext] ?? 'application/octet-stream';
-  const buffer = fs.readFileSync(filePath);
-
-  const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
-  return new NextResponse(buffer, {
+  return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
       'Content-Type': contentType,
       ...(isImage && { 'Cache-Control': 'no-store' }),
