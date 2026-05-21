@@ -56,6 +56,32 @@ export async function downloadFromS3(id: string, filename: string): Promise<Buff
   }
 }
 
+export async function listProjectIdsFromS3(): Promise<string[]> {
+  if (!BUCKET) return [];
+  const ids: string[] = [];
+  let continuationToken: string | undefined;
+  try {
+    do {
+      const res = await getClient().send(
+        new ListObjectsV2Command({
+          Bucket: BUCKET,
+          Prefix: 'projects/',
+          Delimiter: '/',
+          ContinuationToken: continuationToken,
+        })
+      );
+      for (const cp of res.CommonPrefixes ?? []) {
+        const id = cp.Prefix?.replace(/^projects\//, '').replace(/\/$/, '');
+        if (id) ids.push(id);
+      }
+      continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (continuationToken);
+  } catch (err) {
+    console.error('[S3] listProjectIds failed', err);
+  }
+  return ids;
+}
+
 export async function deleteProjectFromS3(id: string): Promise<void> {
   if (!BUCKET) return;
   const prefix = `projects/${id}/`;
