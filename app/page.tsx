@@ -42,6 +42,13 @@ export default function HomePage() {
   const [selectedVoiceId, setSelectedVoiceId] = useState('');
   const [playingVoiceId, setPlayingVoiceId] = useState('');
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [voiceTab, setVoiceTab] = useState<'my' | 'library'>('my');
+  const [libSearch, setLibSearch] = useState('');
+  const [libLang, setLibLang] = useState('');
+  const [libVoices, setLibVoices] = useState<{ public_owner_id: string; voice_id: string; name: string; language: string; preview_url: string; category: string; gender: string; cloned_by_count: number }[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libError, setLibError] = useState('');
+  const [addingVoiceId, setAddingVoiceId] = useState('');
   const [voicesError, setVoicesError] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
 
@@ -155,6 +162,43 @@ export default function HomePage() {
     audio.play();
     audio.onended = () => { currentAudioRef.current = null; setPlayingVoiceId(''); };
     audio.onerror = () => { currentAudioRef.current = null; setPlayingVoiceId(''); };
+  }
+
+  async function handleLibSearch() {
+    setLibLoading(true);
+    setLibError('');
+    try {
+      const params = new URLSearchParams({ page_size: '24' });
+      if (libSearch) params.set('search', libSearch);
+      if (libLang) params.set('language', libLang);
+      const res = await fetch(`/api/settings/voices/library?${params}`);
+      const data = await res.json();
+      if (data.voices) setLibVoices(data.voices);
+      else setLibError(data.error ?? '검색 실패');
+    } catch {
+      setLibError('검색 중 오류가 발생했습니다.');
+    } finally {
+      setLibLoading(false);
+    }
+  }
+
+  async function handleAddVoice(v: { public_owner_id: string; voice_id: string; name: string }) {
+    setAddingVoiceId(v.voice_id);
+    try {
+      const res = await fetch('/api/settings/voices/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicOwnerId: v.public_owner_id, voiceId: v.voice_id, name: v.name }),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      const refreshed = await fetch('/api/settings/voices').then(r => r.json());
+      if (refreshed.voices) setVoices(refreshed.voices);
+      handleSelectVoice(data.voice_id);
+      setVoiceTab('my');
+    } finally {
+      setAddingVoiceId('');
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -312,7 +356,8 @@ export default function HomePage() {
         )}
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          {/* 헤더: 타이틀 + 탭 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, flex: 1 }}>
               TTS 음성 선택
               {selectedVoiceId && voices.length > 0 && (
@@ -321,96 +366,206 @@ export default function HomePage() {
                 </span>
               )}
             </p>
-            <button
-              onClick={() => setKoOnly(v => !v)}
-              style={{
-                fontSize: 12,
-                padding: '3px 10px',
-                borderRadius: 12,
-                border: `1px solid ${koOnly ? 'var(--accent)' : 'var(--border)'}`,
-                background: koOnly ? 'rgba(124,111,255,0.12)' : 'transparent',
-                color: koOnly ? 'var(--accent)' : 'var(--text-muted)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              🇰🇷 한국어만
-            </button>
+            {(['my', 'library'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setVoiceTab(tab)}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  border: `1px solid ${voiceTab === tab ? 'var(--accent)' : 'var(--border)'}`,
+                  background: voiceTab === tab ? 'rgba(124,111,255,0.12)' : 'transparent',
+                  color: voiceTab === tab ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab === 'my' ? '내 보이스' : 'Voice Library'}
+              </button>
+            ))}
+            {voiceTab === 'my' && (
+              <button
+                onClick={() => setKoOnly(v => !v)}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  border: `1px solid ${koOnly ? 'var(--accent)' : 'var(--border)'}`,
+                  background: koOnly ? 'rgba(124,111,255,0.12)' : 'transparent',
+                  color: koOnly ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🇰🇷 한국어만
+              </button>
+            )}
           </div>
-          {voicesError ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{voicesError}</p>
-          ) : voices.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>불러오는 중…</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
-              {voices.filter(v => !koOnly || /korean|ko/i.test(v.labels?.language ?? '')).map(v => {
-                const isSelected = selectedVoiceId === v.voice_id;
-                const isPlaying = playingVoiceId === v.voice_id;
-                return (
-                  <div
-                    key={v.voice_id}
-                    onClick={() => handleSelectVoice(v.voice_id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
-                      background: isSelected ? 'rgba(124,111,255,0.08)' : 'var(--surface-2)',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.15s',
-                    }}
-                  >
-                    <button
-                      onClick={e => { e.stopPropagation(); handlePlayPreview(v); }}
+
+          {/* 내 보이스 탭 */}
+          {voiceTab === 'my' && (
+            voicesError ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{voicesError}</p>
+            ) : voices.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>불러오는 중…</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+                {voices.filter(v => !koOnly || /korean|ko/i.test(v.labels?.language ?? '')).map(v => {
+                  const isSelected = selectedVoiceId === v.voice_id;
+                  const isPlaying = playingVoiceId === v.voice_id;
+                  return (
+                    <div
+                      key={v.voice_id}
+                      onClick={() => handleSelectVoice(v.voice_id)}
                       style={{
-                        flexShrink: 0,
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: isPlaying ? 'var(--accent)' : 'var(--surface)',
-                        color: isPlaying ? '#fff' : 'var(--text-muted)',
-                        cursor: 'pointer',
-                        fontSize: 11,
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
+                        gap: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+                        background: isSelected ? 'rgba(124,111,255,0.08)' : 'var(--surface-2)',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.15s',
                       }}
-                      title="미리듣기"
                     >
-                      {isPlaying ? '■' : '▶'}
-                    </button>
-                    <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: 'var(--text)', flex: 1 }}>
-                      {v.name}
-                    </span>
-                    {v.labels?.language && (
-                      <span style={{
-                        fontSize: 11,
-                        color: /korean|ko/i.test(v.labels.language) ? '#4ade80' : 'var(--text-muted)',
-                        background: 'var(--surface)',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                      }}>
-                        {v.labels.language}
+                      <button
+                        onClick={e => { e.stopPropagation(); handlePlayPreview(v); }}
+                        style={{
+                          flexShrink: 0, width: 28, height: 28, borderRadius: '50%',
+                          border: 'none',
+                          background: isPlaying ? 'var(--accent)' : 'var(--surface)',
+                          color: isPlaying ? '#fff' : 'var(--text-muted)',
+                          cursor: 'pointer', fontSize: 11,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        title="미리듣기"
+                      >
+                        {isPlaying ? '■' : '▶'}
+                      </button>
+                      <span style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: 'var(--text)', flex: 1 }}>
+                        {v.name}
                       </span>
-                    )}
-                    <span style={{
-                      fontSize: 11,
-                      color: 'var(--text-muted)',
-                      background: 'var(--surface)',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                    }}>
-                      {v.category}
-                    </span>
-                    {isSelected && (
-                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>선택됨</span>
-                    )}
-                  </div>
-                );
-              })}
+                      {v.labels?.language && (
+                        <span style={{
+                          fontSize: 11,
+                          color: /korean|ko/i.test(v.labels.language) ? '#4ade80' : 'var(--text-muted)',
+                          background: 'var(--surface)', padding: '2px 6px', borderRadius: 4,
+                        }}>
+                          {v.labels.language}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>
+                        {v.category}
+                      </span>
+                      {isSelected && <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>선택됨</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+
+          {/* Voice Library 탭 */}
+          {voiceTab === 'library' && (
+            <div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <input
+                  value={libSearch}
+                  onChange={e => setLibSearch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleLibSearch()}
+                  placeholder="이름 검색 (예: Korean, Rachel...)"
+                  style={{
+                    flex: 1, padding: '6px 10px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--surface-2)',
+                    color: 'var(--text)', fontSize: 13,
+                  }}
+                />
+                <select
+                  value={libLang}
+                  onChange={e => setLibLang(e.target.value)}
+                  style={{
+                    padding: '6px 8px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--surface-2)',
+                    color: 'var(--text)', fontSize: 13,
+                  }}
+                >
+                  <option value="">전체 언어</option>
+                  <option value="ko">한국어</option>
+                  <option value="en">영어</option>
+                  <option value="ja">일본어</option>
+                  <option value="zh">중국어</option>
+                </select>
+                <button
+                  onClick={handleLibSearch}
+                  disabled={libLoading}
+                  className="btn btn-primary"
+                  style={{ fontSize: 13, padding: '6px 14px', whiteSpace: 'nowrap' }}
+                >
+                  {libLoading ? '검색 중…' : '검색'}
+                </button>
+              </div>
+              {libError && <p style={{ fontSize: 13, color: 'var(--error)', margin: '0 0 8px' }}>{libError}</p>}
+              {libVoices.length === 0 && !libLoading && (
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                  검색어를 입력하고 검색 버튼을 눌러주세요.
+                </p>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {libVoices.map(v => {
+                  const isPlaying = playingVoiceId === v.voice_id;
+                  const isAdding = addingVoiceId === v.voice_id;
+                  return (
+                    <div
+                      key={v.voice_id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface-2)',
+                      }}
+                    >
+                      <button
+                        onClick={() => handlePlayPreview({ voice_id: v.voice_id, preview_url: v.preview_url, labels: { language: v.language } })}
+                        style={{
+                          flexShrink: 0, width: 28, height: 28, borderRadius: '50%',
+                          border: 'none',
+                          background: isPlaying ? 'var(--accent)' : 'var(--surface)',
+                          color: isPlaying ? '#fff' : 'var(--text-muted)',
+                          cursor: 'pointer', fontSize: 11,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        title="미리듣기"
+                      >
+                        {isPlaying ? '■' : '▶'}
+                      </button>
+                      <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{v.name}</span>
+                      {v.language && (
+                        <span style={{ fontSize: 11, color: /ko/i.test(v.language) ? '#4ade80' : 'var(--text-muted)', background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>
+                          {v.language}
+                        </span>
+                      )}
+                      {v.gender && (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface)', padding: '2px 6px', borderRadius: 4 }}>
+                          {v.gender}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {v.cloned_by_count.toLocaleString()}명 사용
+                      </span>
+                      <button
+                        onClick={() => handleAddVoice(v)}
+                        disabled={isAdding}
+                        className="btn btn-outline"
+                        style={{ fontSize: 12, padding: '3px 10px', whiteSpace: 'nowrap' }}
+                      >
+                        {isAdding ? '추가 중…' : '+ 추가'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
