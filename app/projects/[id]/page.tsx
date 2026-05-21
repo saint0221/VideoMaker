@@ -928,8 +928,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* Reference image — always visible before image generation starts */}
-      {!isCompleted && project.status !== 'running:images' && project.status !== 'waiting:images' && project.status !== 'running:video' && project.status !== 'done:video' && project.status !== 'running:capcut' && (
+      {/* Reference image — only editable before pipeline starts */}
+      {isIdle && !pipelineStarted && (
         <div className="card" style={{ marginBottom: 24 }}>
           <input
             ref={referenceInputRef}
@@ -947,16 +947,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               레퍼런스 이미지
             </h3>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>선택 — 이미지 생성 시 스타일 참조용</span>
-            {referenceImageUrl && !isWaitingReference && (
+            {referenceImageUrl && (
               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
             )}
           </div>
-
-          {isWaitingReference && (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0, marginBottom: 16 }}>
-              참조할 이미지를 업로드하면 해당 이미지의 스타일·색감·분위기를 반영합니다. 업로드하지 않으면 프롬프트만으로 생성합니다.
-            </p>
-          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             {referenceImageUrl ? (
