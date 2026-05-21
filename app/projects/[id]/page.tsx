@@ -223,12 +223,13 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
   projectId: string;
   score: number;
   verdict: string;
-  onConfirm: () => void;
+  onConfirm: () => Promise<string | null>;
   onApplyReview: () => void;
 }) {
   const [content, setContent] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [tab, setTab] = useState<'review' | 'script'>('review');
 
   useEffect(() => {
@@ -292,18 +293,39 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
         />
       )}
 
+      {confirmError && (
+        <div style={{
+          background: 'rgba(239,68,68,0.12)',
+          border: '1px solid var(--error)',
+          borderRadius: 8,
+          padding: '10px 14px',
+          color: 'var(--error)',
+          fontSize: 13,
+          marginBottom: 12,
+        }}>
+          {confirmError}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           className="btn btn-success"
           disabled={confirming || applying}
-          onClick={() => { setConfirming(true); onConfirm(); }}
+          onClick={async () => {
+            setConfirming(true);
+            setConfirmError(null);
+            const err = await onConfirm();
+            if (err) {
+              setConfirmError(err);
+              setConfirming(false);
+            }
+          }}
         >
           {confirming ? '처리중…' : '✓ 대본 확정'}
         </button>
         <button
           className="btn btn-outline"
           disabled={confirming || applying}
-          onClick={() => { setApplying(true); onApplyReview(); }}
+          onClick={() => { setApplying(true); setConfirmError(null); onApplyReview(); }}
           style={{ gap: 6 }}
         >
           {applying ? '⏳ 수정 적용 중…' : '↻ 권장사항 적용 후 재검수'}
@@ -476,10 +498,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  async function handleConfirm() {
+  async function handleConfirm(): Promise<string | null> {
+    const res = await fetch(`/api/projects/${id}/confirm`, { method: 'POST' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return (body as { error?: string }).error ?? '대본 확정에 실패했습니다.';
+    }
     setLogs([]);
     connectSSE();
-    await fetch(`/api/projects/${id}/confirm`, { method: 'POST' });
+    return null;
   }
 
   async function handleApplyReview() {
