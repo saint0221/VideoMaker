@@ -5,7 +5,7 @@ const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/hongss/.local/bin/claude';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export const MODEL = {
-  OPUS: 'claude-opus-4-7-20251101',
+  OPUS: 'claude-opus-4-7',
   SONNET: 'claude-sonnet-4-6',
   HAIKU: 'claude-haiku-4-5-20251001',
 } as const;
