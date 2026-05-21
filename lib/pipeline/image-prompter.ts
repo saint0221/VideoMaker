@@ -1,3 +1,5 @@
+import fs from 'fs';
+import Anthropic from '@anthropic-ai/sdk';
 import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude, MODEL } from './claude-runner';
@@ -21,6 +23,15 @@ const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
 4. 씬에 맞는 구체적인 네거티브 프롬프트 추가
 5. 씬에 특정 텍스트가 표시되어야 하면 **텍스트 합성** 블록 추가 (아래 규칙 참조)
 
+📱 세로 영상(9:16) 구도 — CRITICAL:
+이 영상은 유튜브 Shorts용 세로 포맷(9:16)입니다. 모든 프롬프트에 반드시 적용:
+- "vertical 9:16 portrait format, mobile-first framing" 포함
+- 주요 피사체는 프레임 중앙~상단 1/3에 배치 (하단 자막 영역 여백 확보)
+- 가로 구도(landscape, wide shot)는 사용하지 말 것 — 세로로 크롭하면 핵심 요소가 잘릴 수 있음
+- 인물이 있는 씬: "full body or upper body portrait, centered vertically"
+- 배경 씬: "tall narrow composition, vertical symmetry"
+- establishing shot이 필요한 경우: "vertical establishing shot, subject centered in tall frame"
+
 📸 프롬프트 구성 가이드 (모든 요소를 영문 프롬프트에 포함):
 
 1. **카메라/렌즈**: 카메라 기종과 렌즈를 구체적으로 명시
@@ -39,9 +50,9 @@ const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
    - "shot for National Geographic documentary", "BBC documentary style"
    - "tilt-shift effect", "long exposure motion blur" (적절한 씬에만)
 
-5. **구도/앵글**: 촬영 구도를 명시
-   - "extreme close-up", "wide establishing shot", "low angle looking up", "bird's eye view", "Dutch angle"
-   - "rule of thirds composition", "symmetrical composition", "leading lines"
+5. **구도/앵글**: 세로 포맷에 맞는 촬영 구도
+   - "low angle portrait looking up", "straight-on portrait", "overhead vertical shot"
+   - "rule of thirds in portrait frame", "centered symmetrical portrait composition"
 
 6. **분위기/감성**: 감정적 임팩트 묘사
    - "ominous and tense atmosphere", "melancholic solitude", "triumphant grandeur"
@@ -83,6 +94,17 @@ image-prompts.md 맨 위(첫 SCENE 섹션 이전)에 반드시 포함:
 - 이 앵커는 모든 씬 프롬프트 앞에 자동 삽입되므로 씬별 프롬프트에서 인물 외형을 반복하지 않아도 됨
 - 영문 50~100단어/인물
 
+## STYLE_ANCHOR (시각 스타일 앵커)
+CHARACTER_ANCHOR 바로 아래에 반드시 포함:
+- 영상 전체의 색감·분위기·시네마틱 스타일을 영문으로 정의 (100~150단어)
+- 포함 항목:
+  - Color palette: 주조색·보조색·강조색 (예: "desaturated teal shadows, warm amber highlights, muted earth tones")
+  - Film grade: 필름 그레인·색수차·비네팅 등 (예: "subtle 35mm film grain, slight chromatic aberration, gentle vignette")
+  - Lighting mood: 전체 조명 기조 (예: "high contrast chiaroscuro, motivated side lighting")
+  - Visual tone: 전체 분위기 (예: "melancholic and introspective, slightly desaturated")
+  - Cinematic reference: 레퍼런스 영화/다큐 스타일 (예: "Terrence Malick golden hour aesthetic", "BBC Planet Earth documentary")
+- 이 앵커는 모든 씬에서 일관되게 적용되므로 씬별 프롬프트에서 반복 불필요
+
 출력 형식 (image-prompts.md):
 \`\`\`
 # 이미지 생성 프롬프트: {토픽}
@@ -90,17 +112,20 @@ image-prompts.md 맨 위(첫 SCENE 섹션 이전)에 반드시 포함:
 ## CHARACTER_ANCHOR
 Main character: Korean male in his early 50s, weathered face with sharp cheekbones, short salt-and-pepper hair neatly combed back, wearing a dark navy joseon-era official robe with gold collar embroidery, calm and authoritative bearing, dignified posture.
 
+## STYLE_ANCHOR
+Color palette: desaturated teal and charcoal shadows with warm amber and ochre highlights, occasional deep crimson accent. Film grade: subtle 16mm film grain, slight chromatic aberration at edges, soft vignette. Lighting mood: high contrast chiaroscuro with motivated practical light sources, dramatic side lighting. Visual tone: melancholic and weighty, quiet tension beneath the surface. Cinematic reference: Park Chan-wook dramatic staging meets BBC historical documentary — meticulous period detail with emotionally charged framing.
+
 ---
 
 ## SCENE 01
 **프롬프트 (영문)**:
-{최적화된 영문 프롬프트}
+vertical 9:16 portrait format, mobile-first framing, {최적화된 영문 프롬프트}
 
 **프롬프트 (한글)**:
 {위의 한글 번역}
 
 **네거티브**:
-blurry, low quality, watermark, text, nsfw, cartoon, anime
+blurry, low quality, watermark, text, nsfw, cartoon, anime, horizontal composition, landscape format, wide angle crop
 
 ---
 
@@ -109,13 +134,13 @@ blurry, low quality, watermark, text, nsfw, cartoon, anime
 
 ## SCENE 02-B (텍스트 합성 예시 — 순수 타이포그래피 씬)
 **프롬프트 (영문)**:
-Pure deep black background, absolute darkness, cinematic negative space, 4K
+vertical 9:16 portrait format, pure deep black background, absolute darkness, cinematic negative space, 4K
 
 **프롬프트 (한글)**:
-순수 검정 배경, 절대적 어둠, 시네마틱 네거티브 스페이스, 4K
+세로 9:16 포맷, 순수 검정 배경, 절대적 어둠, 시네마틱 네거티브 스페이스, 4K
 
 **네거티브**:
-blurry, low quality, watermark, text, nsfw, bright background, any elements
+blurry, low quality, watermark, text, nsfw, bright background, any elements, horizontal composition
 
 **텍스트 합성**:
 내용: "5분 → 새벽 3시"
@@ -137,6 +162,7 @@ blurry, low quality, watermark, text, nsfw, bright background, any elements
 - 역사 장면은 "historical photograph aesthetic, period accurate costumes, dramatic chiaroscuro lighting" 포함
 - 인물이 등장하면 ethnicity/nationality 명시 (Korean man, Japanese woman 등)
 - 네거티브 프롬프트는 씬 특성에 맞게 구체적으로 작성 (일반적인 것 외 씬에 어울리지 않는 요소 추가)
+- 모든 씬 네거티브에 "horizontal composition, landscape format, wide angle crop" 포함 (세로 포맷 강제)
 - 한국어로 작성 (프롬프트 자체는 영문)
 - 프롬프트에 한국어 문자열 절대 포함 금지 — 텍스트가 필요하면 **텍스트 합성** 블록 사용
 
@@ -153,13 +179,41 @@ AI 이미지 모델은 앞뒤가 다른 오브젝트(스마트폰, 노트북, �
 또한 해당 씬의 네거티브 프롬프트에 반드시 추가:
 "screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration"`;
 
+async function analyzeReferenceImage(imagePath: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
 
+  try {
+    const imageData = fs.readFileSync(imagePath);
+    const base64 = imageData.toString('base64');
+    const ext = imagePath.split('.').pop()?.toLowerCase() ?? 'jpeg';
+    const mediaType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+    const client = new Anthropic({ apiKey });
+    const message = await client.messages.create({
+      model: MODEL.HAIKU,
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: 'Describe this image\'s visual style in English for use as a reference in AI image generation. Focus on: color palette, lighting mood, film grain/texture, overall atmosphere, cinematic style. Be concise (80-120 words). Do not describe the subject matter — only the visual/photographic style.' },
+        ],
+      }],
+    });
+    const block = message.content[0];
+    return block.type === 'text' ? block.text.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function runImagePrompter(
   projectId: string,
   topic: string,
   sceneDesignMd: string,
-  scriptFinalMd: string
+  scriptFinalMd: string,
+  referenceImagePath?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
@@ -169,12 +223,22 @@ export async function runImagePrompter(
     ? `\n⚠️ 목표 길이 ${targetSecs}초 → 총 이미지 슬롯(A/B 합산) 최대 ${maxClips}개. 이를 초과하지 말 것.`
     : '';
 
+  let referenceSection = '';
+  if (referenceImagePath && fs.existsSync(referenceImagePath)) {
+    emit(projectId, { type: 'log', message: '  🎨 레퍼런스 이미지 스타일 분석 중...' });
+    const styleDesc = await analyzeReferenceImage(referenceImagePath);
+    if (styleDesc) {
+      referenceSection = `\n## 레퍼런스 이미지 스타일 분석\n${styleDesc}\n→ 위 스타일을 STYLE_ANCHOR와 각 씬 프롬프트에 최대한 반영하세요.\n`;
+      emit(projectId, { type: 'log', message: '  ✅ 레퍼런스 스타일 분석 완료' });
+    }
+  }
+
   const prompt = `${SYSTEM}
 
 ---
 
 토픽: "${topic}"${durationConstraint}
-
+${referenceSection}
 ## 대본 (script-final.md)
 ${scriptFinalMd}
 

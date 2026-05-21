@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, updateStatus, readFile } from '@/lib/project';
 import { runSceneDesigner } from '@/lib/pipeline/scene-designer';
 import { runImagePrompter } from '@/lib/pipeline/image-prompter';
+import { findReferenceImage } from '@/lib/pipeline/image-generator';
 import { emit } from '@/lib/events';
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +32,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     updateStatus(id, 'running:prompts');
     emit(id, { type: 'status', status: 'running:prompts' });
-    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!);
+    const refPath = findReferenceImage(id) ?? undefined;
+    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!, refPath);
 
     updateStatus(id, 'waiting:images');
     emit(id, { type: 'status', status: 'waiting:images' });
