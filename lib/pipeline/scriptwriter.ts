@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 const SYSTEM = `당신은 유튜브 숏폼 스토리텔링 채널의 전문 대본 작가입니다.
 기획서(brief.md)의 씬 구조를 그대로 따르면서 리서치 데이터로 나레이션을 채웁니다.
@@ -171,7 +171,7 @@ ${researchMd}
 ${youtubeSection}
 위 형식에 맞게 대본 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const scriptContent = await runClaude(prompt);
+  const scriptContent = await runClaude(prompt, { model: MODEL.OPUS });
 
   if (!scriptContent) {
     throw new Error('대본 작가가 script-final.md 내용을 생성하지 못했습니다.');

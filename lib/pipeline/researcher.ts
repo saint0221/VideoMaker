@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 const SYSTEM = `당신은 유튜브 스토리텔링 채널의 전문 리서처입니다.
 주어진 토픽을 깊이 조사하여 대본 작성에 필요한 모든 재료를 수집합니다.
@@ -86,7 +86,7 @@ export async function runResearcher(projectId: string, topic: string): Promise<s
 
   const prompt = `${SYSTEM}\n\n---\n\n토픽: "${topic}"${searchSection}\n\n위 형식에 맞게 리서치 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const researchContent = await runClaude(prompt);
+  const researchContent = await runClaude(prompt, { model: MODEL.SONNET });
 
   if (!researchContent) {
     throw new Error('리서처가 research.md 내용을 생성하지 못했습니다.');

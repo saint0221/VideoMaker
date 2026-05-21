@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 const SYSTEM = `당신은 유튜브 스토리텔링 채널의 콘텐츠 전략가입니다.
 리서치 결과를 바탕으로 2-3개 컨셉 옵션을 제안하고, 각각의 CTR 전략과 훅/인트로를 설계합니다.
@@ -89,7 +89,7 @@ ${researchMd}
 ${youtubeSection}
 위 형식에 맞게 전략 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const strategyContent = await runClaude(prompt);
+  const strategyContent = await runClaude(prompt, { model: MODEL.OPUS });
 
   if (!strategyContent) {
     throw new Error('전략가가 strategy.md 내용을 생성하지 못했습니다.');

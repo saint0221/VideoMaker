@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 const SYSTEM = `당신은 유튜브 대본 검수 전문가입니다.
 완성된 대본이 기획 의도와 품질 기준을 충족하는지 냉정하게 검토하고 100점 만점으로 채점합니다.
@@ -116,7 +116,7 @@ ${briefMd}
 ${factCheckSection}
 위 형식에 맞게 검수 결과만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const reviewContent = await runClaude(prompt);
+  const reviewContent = await runClaude(prompt, { model: MODEL.SONNET });
 
   if (!reviewContent) {
     throw new Error('검수자가 script-review.md 내용을 생성하지 못했습니다.');

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { Project, PipelineStatus, Concept, CostLogEntry } from './types';
+import { uploadToS3, downloadFromS3, deleteProjectFromS3, s3Enabled } from './s3';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'projects');
 
@@ -53,13 +54,31 @@ export function saveProject(project: Project) {
   const dir = projectDir(project.id);
   ensureDir(dir);
   project.updatedAt = new Date().toISOString();
-  fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(project, null, 2));
+  const content = JSON.stringify(project, null, 2);
+  fs.writeFileSync(path.join(dir, 'state.json'), content);
+  uploadToS3(project.id, 'state.json', content);
 }
 
 export function loadProject(id: string): Project | null {
   const file = path.join(DATA_DIR, id, 'state.json');
   if (!fs.existsSync(file)) return null;
   return JSON.parse(fs.readFileSync(file, 'utf-8'));
+}
+
+export async function loadProjectWithS3Fallback(id: string): Promise<Project | null> {
+  const local = loadProject(id);
+  if (local) return local;
+  if (!s3Enabled()) return null;
+  const buf = await downloadFromS3(id, 'state.json');
+  if (!buf) return null;
+  try {
+    const project: Project = JSON.parse(buf.toString('utf-8'));
+    ensureDir(projectDir(id));
+    fs.writeFileSync(path.join(DATA_DIR, id, 'state.json'), buf);
+    return project;
+  } catch {
+    return null;
+  }
 }
 
 export function listProjects(): Project[] {
@@ -81,12 +100,14 @@ export function writeFile(id: string, filename: string, content: string) {
   const filePath = path.join(projectDir(id), filename);
   ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, content);
+  uploadToS3(id, filename, content);
 }
 
 export function writeFileBinary(id: string, filename: string, buffer: Buffer) {
   const filePath = path.join(projectDir(id), filename);
   ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, buffer);
+  uploadToS3(id, filename, buffer);
 }
 
 export function listFiles(id: string, subdir: string): string[] {
@@ -156,6 +177,7 @@ export function deleteProject(id: string): boolean {
   const dir = projectDir(id);
   if (!fs.existsSync(dir)) return false;
   fs.rmSync(dir, { recursive: true, force: true });
+  deleteProjectFromS3(id);
   return true;
 }
 

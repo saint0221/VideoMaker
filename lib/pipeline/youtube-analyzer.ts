@@ -1,6 +1,6 @@
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude } from './claude-runner';
+import { runClaude, MODEL } from './claude-runner';
 
 async function tavilySearch(query: string): Promise<string | null> {
   const apiKey = process.env.TAVILY_API_KEY;
@@ -117,7 +117,7 @@ ${searchSection}
 - 최적 접근 각도: ...
 - 제목 방향성: ...`;
 
-  const analysisContent = await runClaude(prompt);
+  const analysisContent = await runClaude(prompt, { model: MODEL.SONNET });
 
   if (!analysisContent) {
     const fallback = `# 유튜브 레퍼런스 분석: ${topic}\n\n(분석 결과 없음 — 검색 데이터 부족)`;
