@@ -181,6 +181,43 @@ export function readCostLog(): CostLogEntry[] {
   try { return JSON.parse(fs.readFileSync(COST_LOG_FILE, 'utf-8')); } catch { return []; }
 }
 
+export function writeCostReport(id: string): void {
+  const project = loadProject(id);
+  const llmCostUsd = project?.llmCostUsd ?? 0;
+
+  const entries = readCostLog().filter((e) => e.projectId === id);
+  const imageEntry = entries.filter((e) => e.stage === 'image').at(-1);
+  const videoEntry = entries.filter((e) => e.stage === 'video').at(-1);
+
+  const imageCostUsd = imageEntry?.totalCost ?? 0;
+  const videoCostUsd = videoEntry?.totalCost ?? 0;
+
+  const report = {
+    projectId: id,
+    generatedAt: new Date().toISOString(),
+    llm: {
+      costUsd: +llmCostUsd.toFixed(6),
+    },
+    imageGeneration: {
+      count: imageEntry ? imageEntry.toGenerate + imageEntry.skipped : 0,
+      generated: imageEntry?.toGenerate ?? 0,
+      skipped: imageEntry?.skipped ?? 0,
+      costPerUnit: imageEntry?.costPerUnit ?? 0.025,
+      totalCostUsd: +imageCostUsd.toFixed(4),
+    },
+    videoGeneration: {
+      count: videoEntry ? videoEntry.toGenerate + videoEntry.skipped : 0,
+      generated: videoEntry?.toGenerate ?? 0,
+      skipped: videoEntry?.skipped ?? 0,
+      costPerUnit: videoEntry?.costPerUnit ?? 0.28,
+      totalCostUsd: +videoCostUsd.toFixed(4),
+    },
+    totalCostUsd: +(llmCostUsd + imageCostUsd + videoCostUsd).toFixed(4),
+  };
+
+  writeFile(id, 'cost-report.json', JSON.stringify(report, null, 2));
+}
+
 export function deleteProject(id: string): boolean {
   const dir = projectDir(id);
   if (!fs.existsSync(dir)) return false;

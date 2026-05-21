@@ -21,6 +21,7 @@ import {
   listFiles,
   parseConcepts,
   parseReviewScore,
+  writeCostReport,
 } from '../project';
 
 export function hasMandatoryRevisions(reviewMd: string): boolean {
@@ -255,6 +256,8 @@ export async function continueFromImages(projectId: string) {
     updateStatus(projectId, 'running:capcut');
     emit(projectId, { type: 'status', status: 'running:capcut' });
     await runCapcutEditor(projectId);
+
+    writeCostReport(projectId);
 
     updateStatus(projectId, 'completed');
     emit(projectId, { type: 'status', status: 'completed' });
