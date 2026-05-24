@@ -223,7 +223,7 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
   projectId: string;
   score: number;
   verdict: string;
-  onConfirm: (force?: boolean) => Promise<{ error?: string; hasRevisions?: boolean } | null>;
+  onConfirm: () => Promise<{ error?: string; hasRevisions?: boolean } | null>;
   onApplyReview: () => void;
 }) {
   const [content, setContent] = useState('');
@@ -322,20 +322,7 @@ function ReviewView({ projectId, score, verdict, onConfirm, onApplyReview }: {
         >
           {confirming ? '처리중…' : '✓ 대본 확정'}
         </button>
-        {confirmError?.hasRevisions && (
-          <button
-            className="btn btn-outline"
-            disabled={confirming || applying}
-            style={{ borderColor: 'var(--warning)', color: 'var(--warning)' }}
-            onClick={async () => {
-              setConfirming(true);
-              setConfirmError(null);
-              await onConfirm(true);
-            }}
-          >
-            ⚠️ 필수 수정 무시하고 강제 확정
-          </button>
-        )}
+
         <button
           className="btn btn-outline"
           disabled={confirming || applying}
@@ -512,9 +499,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  async function handleConfirm(force = false): Promise<{ error?: string; hasRevisions?: boolean } | null> {
-    const url = force ? `/api/projects/${id}/confirm?force=true` : `/api/projects/${id}/confirm`;
-    const res = await fetch(url, { method: 'POST' });
+  async function handleConfirm(): Promise<{ error?: string; hasRevisions?: boolean } | null> {
+    const res = await fetch(`/api/projects/${id}/confirm`, { method: 'POST' });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       return body as { error?: string; hasRevisions?: boolean };
