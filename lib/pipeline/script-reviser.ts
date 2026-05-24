@@ -100,26 +100,24 @@ export async function runScriptReviser(
   const mandatorySection = extractMandatorySection(reviewMd);
   const mandatoryFixes = parseMandatoryFixes(mandatorySection);
 
-  const mandatoryBlock = mandatorySection
-    ? `## ⚠️ 필수 수정 (반드시 모두 적용 — 미적용 시 재검수 불합격)
+  // Step 1: Apply mandatory fixes mechanically first — guaranteed before LLM runs
+  let baseScript = scriptMd;
+  if (mandatoryFixes.length > 0) {
+    const { script: patched, applied } = applyMechanicalFixes(scriptMd, mandatoryFixes);
+    if (applied.length > 0) {
+      emit(projectId, { type: 'log', message: `🔴 필수 수정 사전 적용 (${applied.length}건): ${applied.join(' | ')}` });
+    }
+    baseScript = patched;
+  }
 
-${mandatorySection}
-
-위 필수 수정 항목의 **현재 대본** 문장을 정확히 찾아 **권장 수정안**으로 교체하세요.
-해당 문장이 그대로 남아 있으면 재검수에서 자동 불합격 처리됩니다.
-
----
-
-`
-    : '';
-
+  // Step 2: LLM applies recommended fixes on top of the mechanically-fixed base
   const prompt = `당신은 한국어 유튜브 대본 편집 전문가입니다.
 검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
 
 ---
 
-${mandatoryBlock}## 원본 대본
-${scriptMd}
+## 원본 대본 (필수 수정 이미 적용됨)
+${baseScript}
 
 ---
 
@@ -130,7 +128,7 @@ ${reviewMd}
 
 ## 수정 원칙
 
-- 위의 "⚠️ 필수 수정" 항목을 최우선으로 반영합니다. 현재 대본 문장을 정확히 찾아 수정안으로 교체하세요.
+- 필수 수정 항목은 이미 반영되어 있습니다. 되돌리지 마세요.
 - "🟡 권장 수정"은 대본 품질을 높이는 항목만 반영합니다.
 - "🟢 잘된 점"은 유지합니다.
 - 대본의 전체 형식과 씬 구성은 유지하되, 문장 품질·흐름·TTS 친화성은 적극적으로 개선합니다.
@@ -158,13 +156,13 @@ ${reviewMd}
 
   let cleanScript = extractFinalScript(revised);
 
-  // Mechanical fallback: apply any mandatory fix the LLM missed
+  // Step 3: Safety net — re-apply mandatory fixes if LLM removed them
   if (mandatoryFixes.length > 0) {
-    const { script: patched, applied } = applyMechanicalFixes(cleanScript, mandatoryFixes);
+    const { script: verified, applied } = applyMechanicalFixes(cleanScript, mandatoryFixes);
     if (applied.length > 0) {
-      emit(projectId, { type: 'log', message: `🔧 LLM 미적용 필수 수정 직접 반영 (${applied.length}건): ${applied.join(' | ')}` });
+      emit(projectId, { type: 'log', message: `🔧 LLM이 필수 수정 제거 — 재적용 (${applied.length}건): ${applied.join(' | ')}` });
     }
-    cleanScript = patched;
+    cleanScript = verified;
   }
 
   writeFile(projectId, 'script-final.md', cleanScript);
