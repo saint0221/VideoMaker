@@ -114,17 +114,20 @@ function parseCharacterAnchor(promptsMd: string): string | null {
 
 function parseImagePrompts(promptsMd: string): ParsedScene[] {
   const scenes: ParsedScene[] = [];
-  const blocks = promptsMd.split(/(?=##\s+SCENE\s+\d)/i);
+  // Support both "## SCENE 01" and "### SLOT 01-A" header formats
+  const blocks = promptsMd.split(/(?=(?:##\s+SCENE|###\s+SLOT)\s+[\dA-Z])/i);
 
   for (const block of blocks) {
-    // Handles: "SCENE 01", "SCENE 02-A", "SCENE 02 — CUT 1", "SCENE 02 — CUT A"
-    const idMatch = block.match(/##\s+SCENE\s+(\d+)(?:-([A-Za-z]))?(?:\s*[-—–]+\s*(?:CUT\s*)?(\d+|[A-Za-z]))?/i);
+    // Handles: "SCENE 01", "SCENE 02-A", "SCENE 02 — CUT 1", "### SLOT 01-A"
+    const idMatch = block.match(
+      /(?:##\s+SCENE|###\s+SLOT)\s+(\d+)(?:[_-]([A-Za-z]))?(?:\s*[-—–]+\s*(?:CUT\s*)?(\d+|[A-Za-z]))?/i,
+    );
     if (!idMatch) continue;
 
     const baseNum = idMatch[1].padStart(2, '0');
     let sceneId: string;
     if (idMatch[2]) {
-      // SCENE 02-A
+      // SCENE 02-A or SLOT 02-A
       sceneId = `${baseNum}-${idMatch[2].toUpperCase()}`;
     } else if (idMatch[3]) {
       // SCENE 02 — CUT 1  →  02-A,  CUT 2  →  02-B
@@ -137,13 +140,17 @@ function parseImagePrompts(promptsMd: string): ParsedScene[] {
       sceneId = baseNum;
     }
 
-    const promptMatch = block.match(/\*\*프롬프트\s*\(영문\)\*\*:\s*\n([\s\S]+?)(?=\n\s*\n\*\*프롬프트\s*\(한글\)|$)/i);
+    // Support both Korean "**프롬프트 (영문)**:" and English "**English prompt**:" field labels
+    const promptMatch = block.match(
+      /\*\*(?:프롬프트\s*\(영문\)|English\s+prompt)\*\*:\s*\n([\s\S]+?)(?=\n\s*\n\*\*(?:프롬프트\s*\(한글\)|한국어)|$)/i,
+    );
     if (!promptMatch) continue;
 
     const prompt = promptMatch[1].trim();
     if (!prompt) continue;
 
-    const negativeMatch = block.match(/\*\*네거티브\*\*:\s*\n([^\n]+)/i);
+    // Support both "**네거티브**:" and "**Negative prompt**:" labels
+    const negativeMatch = block.match(/\*\*(?:네거티브|Negative\s+prompt)\*\*:\s*\n?([^\n]+)/i);
     const negativePrompt = negativeMatch ? negativeMatch[1].trim() : undefined;
 
     const textBlock = block.match(/\*\*텍스트\s*합성\*\*[^\n]*\n([\s\S]+?)(?=\n---|\n##|$)/i);
@@ -288,7 +295,7 @@ export async function runImageGenerator(
       }
     }
 
-    // img2img uses a different endpoint and omits image_size
+    // img2img uses a different endpoint; image_size is always sent to enforce target resolution
     const useImg2Img = !!effectiveImageUrl;
     const endpoint = useImg2Img
       ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
@@ -310,9 +317,8 @@ export async function runImageGenerator(
     if (useImg2Img) {
       body.image_url = effectiveImageUrl;
       body.strength = effectiveStrength;
-    } else {
-      body.image_size = imageSize;
     }
+    body.image_size = imageSize;
 
     const res = await fetch(endpoint, {
       method: 'POST',
