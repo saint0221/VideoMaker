@@ -102,13 +102,28 @@ export async function runScriptReviser(
 
   // Step 1: Apply mandatory fixes mechanically first — guaranteed before LLM runs
   let baseScript = scriptMd;
+  let mechanicallyApplied = false;
+
   if (mandatoryFixes.length > 0) {
     const { script: patched, applied } = applyMechanicalFixes(scriptMd, mandatoryFixes);
     if (applied.length > 0) {
       emit(projectId, { type: 'log', message: `🔴 필수 수정 사전 적용 (${applied.length}건): ${applied.join(' | ')}` });
+      mechanicallyApplied = true;
+    } else {
+      emit(projectId, { type: 'log', message: `⚠️ 필수 수정 파싱 성공 (${mandatoryFixes.length}건)이나 원문 불일치 — LLM이 직접 적용합니다` });
     }
     baseScript = patched;
+  } else if (extractMandatorySection(reviewMd).length > 0) {
+    emit(projectId, { type: 'log', message: `⚠️ 필수 수정 파싱 실패 — LLM이 직접 적용합니다` });
   }
+
+  const scriptSectionLabel = mechanicallyApplied
+    ? '## 원본 대본 (🔴 필수 수정 이미 기계 적용됨)'
+    : '## 원본 대본';
+
+  const mandatoryInstruction = mechanicallyApplied
+    ? '- 🔴 필수 수정 항목은 이미 기계적으로 반영되어 있습니다. 되돌리지 마세요.'
+    : '- 🔴 필수 수정 항목을 검수 리포트에서 확인하여 반드시 직접 반영하세요. 누락 시 재검수에서 불합격 처리됩니다.';
 
   // Step 2: LLM applies recommended fixes on top of the mechanically-fixed base
   const prompt = `당신은 한국어 유튜브 대본 편집 전문가입니다.
@@ -116,7 +131,7 @@ export async function runScriptReviser(
 
 ---
 
-## 원본 대본 (필수 수정 이미 적용됨)
+${scriptSectionLabel}
 ${baseScript}
 
 ---
@@ -128,7 +143,7 @@ ${reviewMd}
 
 ## 수정 원칙
 
-- 필수 수정 항목은 이미 반영되어 있습니다. 되돌리지 마세요.
+${mandatoryInstruction}
 - "🟡 권장 수정"은 대본 품질을 높이는 항목만 반영합니다.
 - "🟢 잘된 점"은 유지합니다.
 - 대본의 전체 형식과 씬 구성은 유지하되, 문장 품질·흐름·TTS 친화성은 적극적으로 개선합니다.
