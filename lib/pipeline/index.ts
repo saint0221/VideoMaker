@@ -53,6 +53,7 @@ export async function runRevisionLoop(
   let currentReview = review;
   let score = 0;
   let verdict = '';
+  let prevScore = 0;
 
   for (let pass = 0; pass < maxPasses; pass++) {
     updateStatus(projectId, 'running:revising');
@@ -65,6 +66,12 @@ export async function runRevisionLoop(
     ({ score, verdict } = parseReviewScore(currentReview));
 
     if (score >= 80 && !hasMandatoryRevisions(currentReview)) break;
+
+    if (pass > 0 && score <= prevScore) {
+      emit(projectId, { type: 'log', message: `📊 점수 개선 없음 (${prevScore}→${score}점) — 루프 조기 종료` });
+      break;
+    }
+    prevScore = score;
 
     if (pass < maxPasses - 1) {
       const reason = hasMandatoryRevisions(currentReview)
