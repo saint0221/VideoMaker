@@ -162,35 +162,59 @@ export async function runTTS(projectId: string, scriptMd: string): Promise<void>
 
   emit(projectId, { type: 'log', message: `[6단계] TTS 생성 (${scenes.length}개 씬)` });
 
+  const errors: string[] = [];
+
   for (const scene of scenes) {
-    emit(projectId, { type: 'log', message: `  씬 ${scene.id} TTS 생성 중…` });
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+        emit(projectId, { type: 'log', message: `  씬 ${scene.id} TTS 재시도 ${attempt}/2…` });
+      }
+      try {
+        emit(projectId, { type: 'log', message: `  씬 ${scene.id} TTS 생성 중…` });
 
-    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`, {
-      method: 'POST',
-      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: scene.text,
-        model_id: 'eleven_multilingual_v2',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-      }),
-    });
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`, {
+          method: 'POST',
+          headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: scene.text,
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          }),
+        });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`ElevenLabs 오류 (씬 ${scene.id}): ${res.status} ${err}`);
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`ElevenLabs 오류 (씬 ${scene.id}): ${res.status} ${err}`);
+        }
+
+        const json = await res.json() as {
+          audio_base64: string;
+          alignment: AlignmentData;
+        };
+
+        const buf = Buffer.from(json.audio_base64, 'base64');
+        writeFileBinary(projectId, `audio/scene_${scene.id}.mp3`, buf);
+        writeFile(projectId, `subtitles/scene_${scene.id}.srt`, alignmentToSRT(json.alignment));
+        writeFile(projectId, `subtitles/scene_${scene.id}_sentences.srt`, alignmentToSrtSentences(json.alignment));
+
+        emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.id} 완료` });
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
     }
+    if (lastErr !== undefined) {
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      errors.push(msg);
+      emit(projectId, { type: 'log', message: `  ❌ 씬 ${scene.id} TTS 실패: ${msg}` });
+    }
+  }
 
-    const json = await res.json() as {
-      audio_base64: string;
-      alignment: AlignmentData;
-    };
-
-    const buf = Buffer.from(json.audio_base64, 'base64');
-    writeFileBinary(projectId, `audio/scene_${scene.id}.mp3`, buf);
-    writeFile(projectId, `subtitles/scene_${scene.id}.srt`, alignmentToSRT(json.alignment));
-    writeFile(projectId, `subtitles/scene_${scene.id}_sentences.srt`, alignmentToSrtSentences(json.alignment));
-
-    emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.id} 완료` });
+  if (errors.length > 0) {
+    throw new Error(`TTS 실패 (${errors.length}개 씬):\n${errors.join('\n')}`);
   }
 
   emit(projectId, { type: 'log', message: '✅ TTS 생성 완료' });

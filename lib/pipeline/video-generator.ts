@@ -128,6 +128,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
     return;
   }
 
+  const key: string = apiKey;
   const project = loadProject(projectId);
   const aspectRatio: '16:9' | '9:16' = project?.aspectRatio === '9:16' ? '9:16' : '16:9';
 
@@ -190,45 +191,76 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
   emit(projectId, { type: 'cost', ...videoCostEntry });
   appendCostLog(videoCostEntry);
 
+  type Clip = { sceneNum: string; suffix: string; imageFile: string; videoFileName: string };
+
+  const clips: Clip[] = [];
   for (const [sceneNum, sceneImages] of [...sceneGroups.entries()].sort()) {
-    // 클립 수 = 계획된 이미지 슬롯 수; 타임라인 채우기는 CapCut 편집기가 담당
-    const totalSlots = sceneImages.length;
-
-    for (let i = 0; i < totalSlots; i++) {
-      const suffix = String.fromCharCode(65 + i); // A, B, C…
+    for (let i = 0; i < sceneImages.length; i++) {
+      const suffix = String.fromCharCode(65 + i);
       const videoFileName = `scene_${sceneNum}-${suffix}.mp4`;
-      const existingVideo = path.join(videosDir, videoFileName);
-
-      if (fs.existsSync(existingVideo)) {
+      if (fs.existsSync(path.join(videosDir, videoFileName))) {
         emit(projectId, { type: 'log', message: `  ⏭️ 씬 ${sceneNum}-${suffix} 이미 완료 — 건너뜀` });
         continue;
       }
-
-      // 이미지가 부족하면 마지막 이미지 재사용
       const imageFile = i < sceneImages.length ? sceneImages[i] : sceneImages[sceneImages.length - 1];
-      emit(projectId, { type: 'log', message: `  씬 ${sceneNum}-${suffix} 영상 생성 중… (약 1~2분 소요)` });
-
-      const imageBuffer = fs.readFileSync(path.join(imagesDir, imageFile));
-      const mimeType = /\.png$/i.test(imageFile) ? 'image/png' : /\.webp$/i.test(imageFile) ? 'image/webp' : 'image/jpeg';
-      const imageUrl = await uploadBufferToFal(apiKey, imageBuffer, imageFile, mimeType);
-
-      const onProgress = (msg: string) => emit(projectId, { type: 'log', message: msg });
-      const videoUrl = await generateVideo(
-        apiKey,
-        imageUrl,
-        'cinematic slow motion, dramatic atmosphere, documentary style',
-        aspectRatio,
-        onProgress
-      );
-
-      const videoRes = await fetch(videoUrl);
-      if (!videoRes.ok) throw new Error(`씬 ${sceneNum}-${suffix} 영상 다운로드 실패`);
-
-      const buf = Buffer.from(await videoRes.arrayBuffer());
-      writeFileBinary(projectId, `videos/${videoFileName}`, buf);
-
-      emit(projectId, { type: 'log', message: `  ✅ 씬 ${sceneNum}-${suffix} 완료` });
+      clips.push({ sceneNum, suffix, imageFile, videoFileName });
     }
+  }
+
+  const CONCURRENCY = 3;
+  const errors: string[] = [];
+  let next = 0;
+
+  async function processClip(clip: Clip): Promise<void> {
+    const { sceneNum, suffix, imageFile, videoFileName } = clip;
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 10000 * attempt));
+        emit(projectId, { type: 'log', message: `  씬 ${sceneNum}-${suffix} 영상 재시도 ${attempt}/2…` });
+      }
+      try {
+        emit(projectId, { type: 'log', message: `  씬 ${sceneNum}-${suffix} 영상 생성 중… (약 1~2분 소요)` });
+        const imageBuffer = fs.readFileSync(path.join(imagesDir, imageFile));
+        const mimeType = /\.png$/i.test(imageFile) ? 'image/png' : /\.webp$/i.test(imageFile) ? 'image/webp' : 'image/jpeg';
+        const imageUrl = await uploadBufferToFal(key, imageBuffer, imageFile, mimeType);
+        const onProgress = (msg: string) => emit(projectId, { type: 'log', message: msg });
+        const videoUrl = await generateVideo(
+          key,
+          imageUrl,
+          'cinematic slow motion, dramatic atmosphere, documentary style',
+          aspectRatio,
+          onProgress
+        );
+        const videoRes = await fetch(videoUrl);
+        if (!videoRes.ok) throw new Error(`씬 ${sceneNum}-${suffix} 영상 다운로드 실패`);
+        const buf = Buffer.from(await videoRes.arrayBuffer());
+        writeFileBinary(projectId, `videos/${videoFileName}`, buf);
+        emit(projectId, { type: 'log', message: `  ✅ 씬 ${sceneNum}-${suffix} 완료` });
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (lastErr !== undefined) {
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      errors.push(msg);
+      emit(projectId, { type: 'log', message: `  ❌ 씬 ${sceneNum}-${suffix} 영상 실패: ${msg}` });
+    }
+  }
+
+  async function worker(): Promise<void> {
+    while (next < clips.length) {
+      const clip = clips[next++];
+      await processClip(clip);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, clips.length) }, () => worker()));
+
+  if (errors.length > 0) {
+    throw new Error(`영상 생성 실패 (${errors.length}개 클립):\n${errors.join('\n')}`);
   }
 
   emit(projectId, { type: 'log', message: '✅ 영상 생성 완료' });
