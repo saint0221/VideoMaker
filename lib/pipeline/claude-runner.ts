@@ -63,7 +63,7 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
   }
 }
 
-async function runCLI(prompt: string, timeoutMs: number, model: string): Promise<string> {
+async function runCLI(prompt: string, timeoutMs: number, model: string, projectId?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
@@ -99,7 +99,25 @@ async function runCLI(prompt: string, timeoutMs: number, model: string): Promise
       if (code !== 0) {
         reject(new Error(`claude 실패 (exit ${code}): ${stderr.slice(0, 500)}`));
       } else {
-        resolve(stdout.trim());
+        const result = stdout.trim();
+        if (projectId) {
+          const promptTokensEst = Math.ceil(prompt.length / 3);
+          const outputTokensEst = Math.ceil(result.length / 3);
+          const pricing = PRICING[model] ?? { inputPerMTok: 3, outputPerMTok: 15 };
+          const costUsd =
+            (promptTokensEst / 1_000_000) * pricing.inputPerMTok +
+            (outputTokensEst / 1_000_000) * pricing.outputPerMTok;
+          const totalUsd = addLlmCost(projectId, costUsd);
+          emit(projectId, {
+            type: 'llm-cost',
+            model,
+            inputTokens: promptTokensEst,
+            outputTokens: outputTokensEst,
+            costUsd,
+            totalUsd,
+          });
+        }
+        resolve(result);
       }
     });
 
@@ -121,7 +139,7 @@ export async function runClaude(
   if (process.env.ANTHROPIC_API_KEY) {
     return runClaudeSDK(prompt, timeoutMs, model, projectId, maxTokens);
   }
-  return runCLI(prompt, timeoutMs, model);
+  return runCLI(prompt, timeoutMs, model, projectId);
 }
 
 async function runCLIWithImage(imagePath: string, textPrompt: string, timeoutMs: number, model: string): Promise<string | null> {

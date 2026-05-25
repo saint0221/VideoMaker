@@ -16,23 +16,26 @@
 | 순서 | 상태 키 | 설명 | 출력 파일 |
 |------|---------|------|-----------|
 | 1 | `running:research` → `done:research` | 웹 리서치 | `research.md` |
-| 1.5 | `running:youtube` → `done:youtube` | 유튜브 채널 분석 | `youtube-analysis.md` |
+| 1.5a | `done:research` → `waiting:youtube-urls` | 유튜브 채널 URL 입력 대기 (youtube-analysis.md 없을 때) | — |
+| 1.5b | `running:youtube` → `done:youtube` | 유튜브 채널 분석 | `youtube-analysis.md` |
 | 2 | `running:strategy` → `waiting:concept` | 컨셉 전략 (사용자 선택 필요) | `strategy.md` |
 | 3 | `running:planning` → `done:planning` | 기획서 작성 | `brief.md` |
 | 4 | `running:scripting` → `done:scripting` | 대본 작성 | `script-final.md` |
 | 4.5 | `running:factcheck` → `done:factcheck` | 팩트 체크 | `fact-check.md` |
 | 5 | `running:review` → `done:review` | 대본 검토 | `script-review.md` |
-| 5a | `running:revising` → (재검토) | 자동 수정 (85점 미만 또는 필수 수정 시) | `script-final.md` (갱신) |
-| 5b | `waiting:confirm` | 대본 최종 승인 대기 (85점 미만 재수정 후에만) | — |
+| 5a | `running:revising` → (재검토) | 자동 수정 (80점 미만 또는 필수 수정 시) | `script-final.md` (갱신) |
+| 5b | `waiting:confirm` | 대본 최종 승인 대기 (80점 미만 재수정 후에만) | — |
 | 6 | `running:tts` → `done:tts` | TTS 음성 생성 | `audio/`, `subtitles/` |
 | 7 | `running:scene` → `done:scene` | 씬 설계 | `scene-design.md` |
 | 8 | `running:prompts` → `done:prompts` | 이미지 프롬프트 생성 | `image-prompts.md` |
-| 9a | `done:prompts` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
-| 9b | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
+| 9a | `done:prompts` → `waiting:cost-images` | 이미지 생성 비용 미리보기 확인 대기 | — |
+| 9b | `waiting:cost-images` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
+| 9c | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
+| 9d | `done:images` → `waiting:cost-video` | 영상 생성 비용 미리보기 확인 대기 (미구현 — types.ts에 선언됨) | — |
 | 10 | `running:video` → `done:video` | 영상 클립 생성 | `videos/` |
 | 11 | `running:capcut` → `completed` | 캡컷 프로젝트 생성 | `capcut-project/` |
 
-**사용자 개입 포인트**: `waiting:concept` (컨셉 선택), `waiting:confirm` (85점 미만 재수정 후 대본 최종 승인 — 85점 이상·필수 수정 없으면 자동 확정), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
+**사용자 개입 포인트**: `waiting:youtube-urls` (유튜브 채널 URL 입력 — 생략 가능), `waiting:concept` (컨셉 선택), `waiting:confirm` (80점 미만 재수정 후 대본 최종 승인 — 80점 이상·필수 수정 없으면 자동 확정), `waiting:cost-images` (이미지 생성 비용 미리보기 확인), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
 
 ## 핵심 파일 위치
 
@@ -70,6 +73,13 @@ app/
         ├── restore-status/route.ts  # POST — 상태 복구
         ├── images/route.ts          # GET — 생성된 이미지 목록 (sceneId, localPath)
         ├── regenerate-capcut/route.ts # POST — 캡컷 프로젝트 재생성
+        ├── regenerate-scene/route.ts  # POST — 씬 설계 재생성
+        ├── regenerate-tts/route.ts    # POST — TTS 재생성
+        ├── patch-subtitles/route.ts   # POST — 자막 수정
+        ├── use-existing-images/route.ts # POST — 기존 이미지 재사용 (images 단계 건너뜀)
+        ├── deploy-capcut/route.ts     # POST — 캡컷 프로젝트 배포
+        ├── confirm-cost/route.ts      # POST — 이미지/영상 비용 확인 (waiting:cost-images, waiting:cost-video 처리)
+        ├── youtube-urls/route.ts      # POST — 유튜브 URL 입력 후 runPipelineFromYoutube 호출
         ├── files/route.ts           # GET — ?file= 파라미터로 허용된 특정 파일 내용 반환
         └── media/route.ts           # GET — 미디어 파일 서빙
 ```
@@ -110,7 +120,7 @@ FAL_API_KEY=             # 이미지/영상 생성 (없으면 건너뜀)
 KLING_API_KEY=           # 영상 생성 폴백
 ```
 
-> **주의**: `ANTHROPIC_API_KEY`는 **불필요**. AI 호출은 `claude CLI`를 자식 프로세스로 spawn하며 CLI 자체 인증을 사용 (`lib/pipeline/claude-runner.ts` 참조).
+> **AI 인증**: `ANTHROPIC_API_KEY`는 **선택적** — 설정 시 Anthropic SDK 직접 호출 (정확한 token/cost 추적 가능), 미설정 시 `claude CLI`를 자식 프로세스로 spawn (CLI 자체 인증 사용, cost는 문자 수 기반 추정치). `lib/pipeline/claude-runner.ts` 참조.
 
 ## UI 디자인 시스템
 
@@ -128,9 +138,16 @@ KLING_API_KEY=           # 영상 생성 폴백
 - 새 파이프라인 단계 추가 시 `lib/types.ts`의 `PipelineStatus`와 `lib/pipeline/index.ts` 오케스트레이터 모두 수정 필요
 - **AI 호출**: 파이프라인 단계들은 Anthropic SDK가 아닌 `lib/pipeline/claude-runner.ts`를 통해 `claude CLI`를 자식 프로세스로 spawn — `ANTHROPIC_API_KEY`를 env에서 제거하고 CLI 자체 인증 사용
 - `CLAUDE_BIN` 환경변수로 claude 바이너리 경로 지정 가능 (기본값: `/Users/hongss/.local/bin/claude`)
-- 파이프라인 오케스트레이터는 4개 함수로 분리: `runPipeline` (리서치~컨셉), `runPipelineFromPlanning` (기획~검토), `runPostScript` (TTS~이미지), `continueFromImages` (영상~캡컷)
+- 파이프라인 오케스트레이터는 6개 함수로 분리:
+  - `runPipeline` — 리서치 → `waiting:youtube-urls` 게이트까지
+  - `runPipelineFromYoutube` — 유튜브 분석 → 전략 → `waiting:concept` (youtube-urls/route.ts에서 호출)
+  - `runPipelineFromPlanning` — 기획 → 검토 (concept/route.ts에서 호출)
+  - `runPostScript` — TTS → 씬 → 이미지 프롬프트 → `waiting:cost-images`
+  - `continueFromImages` — 영상 → 캡컷 (confirm-images/route.ts에서 호출)
+  - `resumePipeline` — 파일 존재 여부로 재개 지점 판단 후 적절한 함수로 분기 (run/route.ts 재시작 시 호출)
 - **에러 복구 패턴**: `project.lastStatus`에 에러 발생 직전 상태가 기록됨 — 복구 API/UI 로직은 이를 기반으로 단계 판단
 - **`start-images`**: `error` 상태 + `image-prompts.md` 존재 시 `waiting:reference`로 자동 복구 후 이미지 생성 시작 (409 반환 안 함)
 - **시간 힌트**: planner가 토픽에서 "1분"/"30초"/"2분" 키워드 감지 → 씬 수·예상 길이 자동 조정; scriptwriter는 narration을 brief.md 길이에 비례 생성 (1분=300자)
 - **`parseConcepts`**: `lib/project.ts`에 위치 (pipeline 폴더 아님)
+- **`done:strategy`**: `lib/types.ts`와 `page.tsx` UI에만 선언 — index.ts에서 실제로 set되지 않음 (strategy 후 바로 `waiting:concept`으로 전환)
 - **`runImagesBackground`**: `lib/pipeline/index.ts`에서 export — image 관련 route에서 직접 호출
