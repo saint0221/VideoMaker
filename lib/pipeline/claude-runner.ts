@@ -29,7 +29,7 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const message = await client.messages.create(
+    const stream = client.messages.stream(
       {
         model,
         max_tokens: maxTokens ?? (model === MODEL.OPUS ? 32000 : 16000),
@@ -37,6 +37,7 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
       },
       { signal: controller.signal }
     );
+    const message = await stream.finalMessage();
 
     if (projectId) {
       const usage = message.usage;
