@@ -63,7 +63,7 @@ export async function runRevisionLoop(
 
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });
-    currentReview = await runReviewer(projectId, topic, currentScript, briefMd, factCheckMd);
+    currentReview = await runReviewer(projectId, topic, currentScript, briefMd, factCheckMd, language);
     ({ score, verdict } = parseReviewScore(currentReview));
 
     if (score >= 80 && !hasMandatoryRevisions(currentReview)) break;
@@ -200,7 +200,7 @@ export async function runPipelineFromPlanning(projectId: string) {
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });
 
-    let reviewMdFinal = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
+    let reviewMdFinal = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd, language ?? 'ko');
     let { score, verdict } = parseReviewScore(reviewMdFinal);
 
     // 80점 미만이거나 필수 수정 항목이 있으면 자동 수정 반복 (최대 3회)
@@ -405,7 +405,7 @@ export async function resumePipeline(projectId: string) {
     if (!review) {
       updateStatus(projectId, 'running:review', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:review' });
-      let reviewMdFinal = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined);
+      let reviewMdFinal = await runReviewer(projectId, topic, script!, brief!, factCheck ?? undefined, language ?? 'ko');
       let { score, verdict } = parseReviewScore(reviewMdFinal);
 
       if (score < 80 || hasMandatoryRevisions(reviewMdFinal)) {
