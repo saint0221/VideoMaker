@@ -40,6 +40,43 @@ export function handleError(projectId: string, err: unknown): void {
   emit(projectId, { type: 'done' });
 }
 
+export async function runRevisionLoop(
+  projectId: string,
+  topic: string,
+  script: string,
+  review: string,
+  briefMd: string,
+  factCheckMd: string | undefined,
+  maxPasses = 3
+): Promise<{ script: string; reviewMd: string; score: number; verdict: string }> {
+  let currentScript = script;
+  let currentReview = review;
+  let score = 0;
+  let verdict = '';
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    updateStatus(projectId, 'running:revising');
+    emit(projectId, { type: 'status', status: 'running:revising' });
+    currentScript = await runScriptReviser(projectId, currentScript, currentReview);
+
+    updateStatus(projectId, 'running:review');
+    emit(projectId, { type: 'status', status: 'running:review' });
+    currentReview = await runReviewer(projectId, topic, currentScript, briefMd, factCheckMd);
+    ({ score, verdict } = parseReviewScore(currentReview));
+
+    if (score >= 80 && !hasMandatoryRevisions(currentReview)) break;
+
+    if (pass < maxPasses - 1) {
+      const reason = hasMandatoryRevisions(currentReview)
+        ? '🔴 필수 수정 항목 감지'
+        : `📝 ${score}점 (80점 미만)`;
+      emit(projectId, { type: 'log', message: `${reason} — 재수정 (${pass + 2}/${maxPasses})...` });
+    }
+  }
+
+  return { script: currentScript, reviewMd: currentReview, score, verdict };
+}
+
 export async function runPipeline(projectId: string) {
   const project = loadProject(projectId);
   if (!project) throw new Error(`Project ${projectId} not found`);
@@ -158,20 +195,15 @@ export async function runPipelineFromPlanning(projectId: string) {
     let reviewMdFinal = await runReviewer(projectId, topic, scriptMd, briefMd, factCheckMd);
     let { score, verdict } = parseReviewScore(reviewMdFinal);
 
-    // 80점 미만이거나 필수 수정 항목이 있으면 자동 수정 후 재검토
+    // 80점 미만이거나 필수 수정 항목이 있으면 자동 수정 반복 (최대 3회)
     if (score < 80 || hasMandatoryRevisions(reviewMdFinal)) {
       const reason = hasMandatoryRevisions(reviewMdFinal)
         ? '🔴 필수 수정 항목 감지'
         : `📝 점수 ${score}점 (80점 미만)`;
       emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
-      updateStatus(projectId, 'running:revising');
-      emit(projectId, { type: 'status', status: 'running:revising' });
-      const revisedScript = await runScriptReviser(projectId, scriptMd, reviewMdFinal);
-
-      updateStatus(projectId, 'running:review');
-      emit(projectId, { type: 'status', status: 'running:review' });
-      reviewMdFinal = await runReviewer(projectId, topic, revisedScript, briefMd, factCheckMd);
-      ({ score, verdict } = parseReviewScore(reviewMdFinal));
+      ({ reviewMd: reviewMdFinal, score, verdict } = await runRevisionLoop(
+        projectId, topic, scriptMd, reviewMdFinal, briefMd, factCheckMd
+      ));
     }
 
     updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict });
@@ -373,14 +405,9 @@ export async function resumePipeline(projectId: string) {
           ? '🔴 필수 수정 항목 감지'
           : `📝 점수 ${score}점 (80점 미만)`;
         emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
-        updateStatus(projectId, 'running:revising', { error: undefined });
-        emit(projectId, { type: 'status', status: 'running:revising' });
-        const revisedScript = await runScriptReviser(projectId, script!, reviewMdFinal);
-
-        updateStatus(projectId, 'running:review', { error: undefined });
-        emit(projectId, { type: 'status', status: 'running:review' });
-        reviewMdFinal = await runReviewer(projectId, topic, revisedScript, brief!, factCheck ?? undefined);
-        ({ score, verdict } = parseReviewScore(reviewMdFinal));
+        ({ reviewMd: reviewMdFinal, score, verdict } = await runRevisionLoop(
+          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined
+        ));
       }
 
       updateStatus(projectId, 'waiting:confirm', { reviewScore: score, reviewVerdict: verdict, error: undefined });
