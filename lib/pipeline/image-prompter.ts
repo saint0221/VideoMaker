@@ -225,7 +225,7 @@ ${sceneDesignMd}
 
 위 대본과 씬 설계서를 함께 참고하여 각 씬의 나레이션 의도·감정·이미지 힌트가 프롬프트에 일관되게 반영되도록 image-prompts.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
-  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId, timeoutMs: 20 * 60 * 1000 });
 
   if (!content) {
     throw new Error('이미지 프롬프터가 image-prompts.md 내용을 생성하지 못했습니다.');
