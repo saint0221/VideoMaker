@@ -7,7 +7,7 @@ const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/hongss/.local/bin/claude';
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
-  'claude-opus-4-7-20251101': { inputPerMTok: 15, outputPerMTok: 75 },
+  'claude-opus-4-7': { inputPerMTok: 15, outputPerMTok: 75 },
   'claude-sonnet-4-6': { inputPerMTok: 3, outputPerMTok: 15 },
   'claude-haiku-4-5-20251001': { inputPerMTok: 0.8, outputPerMTok: 4 },
 };
