@@ -1044,6 +1044,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
+      {/* Reference image — read-only when pipeline is running */}
+      {referenceImageUrl && !(isIdle && !pipelineStarted) && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>레퍼런스 이미지</h3>
+            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
+          </div>
+          <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', display: 'inline-block' }}>
+            <img
+              src={referenceImageUrl}
+              alt="레퍼런스"
+              style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Image cost preview gate */}
       {isWaitingCostImages && project.costPreview && (
         <div className="card" style={{ marginBottom: 24 }}>
