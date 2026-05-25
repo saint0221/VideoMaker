@@ -819,9 +819,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     <span style={{ fontWeight: 700, color: 'var(--success)', fontSize: 14 }}>실행 중 · {formatSec(elapsedSec)} 경과</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {llmCostUsd > 0 && (
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>LLM ${llmCostUsd.toFixed(4)}</span>
-                    )}
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>LLM ${llmCostUsd.toFixed(4)}</span>
                     <span style={{ fontSize: 11, color: 'var(--accent)' }}>실시간 업데이트</span>
                   </div>
                 </div>
@@ -837,7 +835,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 )}
               </div>
             ) : (
-              <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>로그</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>로그</h3>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>LLM ${llmCostUsd.toFixed(4)}</span>
+              </div>
             )}
           </div>
           <div style={{
@@ -1164,12 +1165,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <div style={{ fontWeight: 700, color: 'var(--success)', fontSize: 16 }}>제작 완료!</div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>모든 파일이 준비되었습니다</div>
             </div>
-            {llmCostUsd > 0 && (
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LLM 비용</div>
-                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text)' }}>${llmCostUsd.toFixed(4)}</div>
-              </div>
-            )}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LLM 비용</div>
+              <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text)' }}>${llmCostUsd.toFixed(4)}</div>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             <FileLink projectId={id} file="script-final.md" label="최종 대본" />
