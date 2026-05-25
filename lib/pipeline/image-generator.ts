@@ -256,15 +256,47 @@ export async function runImageGenerator(
   emit(projectId, { type: 'cost', ...imageCostEntry });
   appendCostLog(imageCostEntry);
 
-  const errors: string[] = [];
+  const key: string = apiKey;
 
+  type SceneTask = { scene: ParsedScene; absPath: string; localPath: string };
+
+  const tasks: SceneTask[] = [];
   for (const scene of scenes) {
     const localPath = `images/scene_${scene.id}.jpg`;
     const absPath = path.join(projectDir(projectId), localPath);
-
     if (fs.existsSync(absPath)) {
       emit(projectId, { type: 'log', message: `  씬 ${scene.id} 건너뜀 (이미 존재)` });
       continue;
+    }
+    tasks.push({ scene, absPath, localPath });
+  }
+
+  const CONCURRENCY = 3;
+  const errors: string[] = [];
+  let next = 0;
+
+  async function processScene({ scene, absPath, localPath }: SceneTask): Promise<void> {
+    // Resolve per-scene ref ONCE before retry loop to avoid redundant uploads on retry
+    let effectiveImageUrl: string | null = referenceImageUrl;
+    let effectiveStrength = options?.referenceStrength ?? 0.85;
+
+    if (scene.sceneRef) {
+      const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
+      if (fs.existsSync(refPath)) {
+        emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
+        const uploaded = await uploadToFalStorage(refPath, key);
+        if (uploaded) {
+          effectiveImageUrl = uploaded;
+          effectiveStrength = scene.refStrength ?? 0.75;
+          emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
+        } else {
+          emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
+          effectiveImageUrl = null;
+        }
+      } else {
+        emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
+        effectiveImageUrl = null;
+      }
     }
 
     let lastErr: unknown;
@@ -280,29 +312,6 @@ export async function runImageGenerator(
         const negativePrompt = scene.negativePrompt
           ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
           : BASE_NEGATIVE;
-
-        // Resolve effective reference: per-scene ref overrides global ref
-        let effectiveImageUrl: string | null = referenceImageUrl;
-        let effectiveStrength = options?.referenceStrength ?? 0.85;
-
-        if (scene.sceneRef) {
-          const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
-          if (fs.existsSync(refPath)) {
-            emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
-            const uploaded = await uploadToFalStorage(refPath, apiKey);
-            if (uploaded) {
-              effectiveImageUrl = uploaded;
-              effectiveStrength = scene.refStrength ?? 0.75;
-              emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
-            } else {
-              emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
-              effectiveImageUrl = null;
-            }
-          } else {
-            emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
-            effectiveImageUrl = null;
-          }
-        }
 
         // img2img uses a different endpoint; image_size is always sent to enforce target resolution
         const useImg2Img = !!effectiveImageUrl;
@@ -332,7 +341,7 @@ export async function runImageGenerator(
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
-            Authorization: `Key ${apiKey}`,
+            Authorization: `Key ${key}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(body),
@@ -371,6 +380,17 @@ export async function runImageGenerator(
       errors.push(msg);
       emit(projectId, { type: 'log', message: `  ❌ 씬 ${scene.id} 이미지 실패: ${msg}` });
     }
+  }
+
+  async function worker(): Promise<void> {
+    while (next < tasks.length) {
+      const task = tasks[next++];
+      await processScene(task);
+    }
+  }
+
+  if (tasks.length > 0) {
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tasks.length) }, () => worker()));
   }
 
   if (errors.length > 0) {

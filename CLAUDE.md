@@ -27,12 +27,13 @@
 | 6 | `running:tts` → `done:tts` | TTS 음성 생성 | `audio/`, `subtitles/` |
 | 7 | `running:scene` → `done:scene` | 씬 설계 | `scene-design.md` |
 | 8 | `running:prompts` → `done:prompts` | 이미지 프롬프트 생성 | `image-prompts.md` |
-| 9a | `done:prompts` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
-| 9b | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
+| 9a | `done:prompts` → `waiting:cost-images` | 이미지 생성 비용 미리보기 확인 대기 | — |
+| 9b | `waiting:cost-images` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
+| 9c | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
 | 10 | `running:video` → `done:video` | 영상 클립 생성 | `videos/` |
 | 11 | `running:capcut` → `completed` | 캡컷 프로젝트 생성 | `capcut-project/` |
 
-**사용자 개입 포인트**: `waiting:concept` (컨셉 선택), `waiting:confirm` (85점 미만 재수정 후 대본 최종 승인 — 85점 이상·필수 수정 없으면 자동 확정), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
+**사용자 개입 포인트**: `waiting:concept` (컨셉 선택), `waiting:confirm` (85점 미만 재수정 후 대본 최종 승인 — 85점 이상·필수 수정 없으면 자동 확정), `waiting:cost-images` (이미지 생성 비용 미리보기 확인), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
 
 ## 핵심 파일 위치
 

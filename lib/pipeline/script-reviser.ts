@@ -169,7 +169,20 @@ ${mandatoryInstruction}
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');
   }
 
-  let cleanScript = extractFinalScript(revised);
+  let cleanScript: string;
+  try {
+    cleanScript = extractFinalScript(revised);
+  } catch (formatErr) {
+    const raw = revised
+      .replace(/===대본 시작===/g, '')
+      .replace(/===대본 끝===/g, '')
+      .trim();
+    emit(projectId, {
+      type: 'log',
+      message: `⚠️ 대본 형식 불일치 — 내용 그대로 저장: ${formatErr instanceof Error ? formatErr.message : ''}`,
+    });
+    cleanScript = raw.startsWith('# 대본:') ? raw : `# 대본: (수정본)\n\n${raw}`;
+  }
 
   // Step 3: Safety net — re-apply mandatory fixes if LLM removed them
   if (mandatoryFixes.length > 0) {
