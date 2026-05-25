@@ -203,11 +203,17 @@ export async function runImagePrompter(
 
   let referenceSection = '';
   if (referenceImagePath && fs.existsSync(referenceImagePath)) {
-    emit(projectId, { type: 'log', message: '  🎨 레퍼런스 이미지 스타일 분석 중...' });
-    const styleDesc = await analyzeReferenceImage(referenceImagePath);
-    if (styleDesc) {
-      referenceSection = `\n## 레퍼런스 이미지 스타일 분석\n${styleDesc}\n→ 위 스타일을 STYLE_ANCHOR와 각 씬 프롬프트에 최대한 반영하세요.\n`;
-      emit(projectId, { type: 'log', message: '  ✅ 레퍼런스 스타일 분석 완료' });
+    if (!process.env.ANTHROPIC_API_KEY) {
+      emit(projectId, { type: 'log', message: '  ⚠️ ANTHROPIC_API_KEY 미설정 — 레퍼런스 스타일 분석 건너뜀 (이미지 생성 시 img2img로 스타일 반영)' });
+    } else {
+      emit(projectId, { type: 'log', message: '  🎨 레퍼런스 이미지 스타일 분석 중...' });
+      const styleDesc = await analyzeReferenceImage(referenceImagePath);
+      if (styleDesc) {
+        referenceSection = `\n## 레퍼런스 이미지 스타일 분석\n${styleDesc}\n→ 위 스타일을 STYLE_ANCHOR와 각 씬 프롬프트에 최대한 반영하세요.\n`;
+        emit(projectId, { type: 'log', message: '  ✅ 레퍼런스 스타일 분석 완료' });
+      } else {
+        emit(projectId, { type: 'log', message: '  ⚠️ 레퍼런스 스타일 분석 실패 — 기본 스타일로 프롬프트 생성' });
+      }
     }
   }
 
