@@ -256,6 +256,8 @@ export async function runImageGenerator(
   emit(projectId, { type: 'cost', ...imageCostEntry });
   appendCostLog(imageCostEntry);
 
+  const errors: string[] = [];
+
   for (const scene of scenes) {
     const localPath = `images/scene_${scene.id}.jpg`;
     const absPath = path.join(projectDir(projectId), localPath);
@@ -265,92 +267,114 @@ export async function runImageGenerator(
       continue;
     }
 
-    emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 생성 중…` });
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 3000 * attempt));
+        emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 재시도 ${attempt}/2…` });
+      }
+      try {
+        emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 생성 중…` });
 
-    const BASE_NEGATIVE = 'screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration';
-    const negativePrompt = scene.negativePrompt
-      ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
-      : BASE_NEGATIVE;
+        const BASE_NEGATIVE = 'screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration';
+        const negativePrompt = scene.negativePrompt
+          ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
+          : BASE_NEGATIVE;
 
-    // Resolve effective reference: per-scene ref overrides global ref
-    let effectiveImageUrl: string | null = referenceImageUrl;
-    let effectiveStrength = options?.referenceStrength ?? 0.85;
+        // Resolve effective reference: per-scene ref overrides global ref
+        let effectiveImageUrl: string | null = referenceImageUrl;
+        let effectiveStrength = options?.referenceStrength ?? 0.85;
 
-    if (scene.sceneRef) {
-      const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
-      if (fs.existsSync(refPath)) {
-        emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
-        const uploaded = await uploadToFalStorage(refPath, apiKey);
-        if (uploaded) {
-          effectiveImageUrl = uploaded;
-          effectiveStrength = scene.refStrength ?? 0.75;
-          emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
-        } else {
-          emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
-          effectiveImageUrl = null;
+        if (scene.sceneRef) {
+          const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
+          if (fs.existsSync(refPath)) {
+            emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
+            const uploaded = await uploadToFalStorage(refPath, apiKey);
+            if (uploaded) {
+              effectiveImageUrl = uploaded;
+              effectiveStrength = scene.refStrength ?? 0.75;
+              emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
+            } else {
+              emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
+              effectiveImageUrl = null;
+            }
+          } else {
+            emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
+            effectiveImageUrl = null;
+          }
         }
-      } else {
-        emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
-        effectiveImageUrl = null;
+
+        // img2img uses a different endpoint; image_size is always sent to enforce target resolution
+        const useImg2Img = !!effectiveImageUrl;
+        const endpoint = useImg2Img
+          ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
+          : 'https://fal.run/fal-ai/flux/dev';
+
+        const finalPrompt = characterAnchor
+          ? `${characterAnchor}\n\n${scene.prompt}`
+          : scene.prompt;
+
+        const body: Record<string, unknown> = {
+          prompt: finalPrompt,
+          negative_prompt: negativePrompt,
+          num_inference_steps: 35,
+          guidance_scale: 5.0,
+          num_images: 1,
+          enable_safety_checker: true,
+        };
+
+        if (useImg2Img) {
+          body.image_url = effectiveImageUrl;
+          body.strength = effectiveStrength;
+        }
+        body.image_size = imageSize;
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Key ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`FAL 이미지 오류 (씬 ${scene.id}): ${res.status} ${err}`);
+        }
+
+        const data = (await res.json()) as FalImageResult;
+        const imageUrl = data.images?.[0]?.url;
+        if (!imageUrl) throw new Error(`씬 ${scene.id} 이미지 URL 없음`);
+
+        const imgRes = await fetch(imageUrl);
+        if (!imgRes.ok) throw new Error(`씬 ${scene.id} 이미지 다운로드 실패`);
+
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        writeFileBinary(projectId, localPath, buf);
+
+        if (scene.textComposite) {
+          await compositeText(absPath, scene.textComposite);
+          emit(projectId, { type: 'log', message: `  ✏️  씬 ${scene.id} 텍스트 합성 완료` });
+        }
+
+        emit(projectId, { type: 'image', sceneId: scene.id, localPath });
+        emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.id} 이미지 완료` });
+        lastErr = undefined;
+        break;
+      } catch (err) {
+        lastErr = err;
       }
     }
-
-    // img2img uses a different endpoint; image_size is always sent to enforce target resolution
-    const useImg2Img = !!effectiveImageUrl;
-    const endpoint = useImg2Img
-      ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
-      : 'https://fal.run/fal-ai/flux/dev';
-
-    const finalPrompt = characterAnchor
-      ? `${characterAnchor}\n\n${scene.prompt}`
-      : scene.prompt;
-
-    const body: Record<string, unknown> = {
-      prompt: finalPrompt,
-      negative_prompt: negativePrompt,
-      num_inference_steps: 35,
-      guidance_scale: 5.0,
-      num_images: 1,
-      enable_safety_checker: true,
-    };
-
-    if (useImg2Img) {
-      body.image_url = effectiveImageUrl;
-      body.strength = effectiveStrength;
+    if (lastErr !== undefined) {
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      errors.push(msg);
+      emit(projectId, { type: 'log', message: `  ❌ 씬 ${scene.id} 이미지 실패: ${msg}` });
     }
-    body.image_size = imageSize;
+  }
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Key ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`FAL 이미지 오류 (씬 ${scene.id}): ${res.status} ${err}`);
-    }
-
-    const data = (await res.json()) as FalImageResult;
-    const imageUrl = data.images?.[0]?.url;
-    if (!imageUrl) throw new Error(`씬 ${scene.id} 이미지 URL 없음`);
-
-    const imgRes = await fetch(imageUrl);
-    if (!imgRes.ok) throw new Error(`씬 ${scene.id} 이미지 다운로드 실패`);
-
-    const buf = Buffer.from(await imgRes.arrayBuffer());
-    writeFileBinary(projectId, localPath, buf);
-
-    if (scene.textComposite) {
-      await compositeText(absPath, scene.textComposite);
-      emit(projectId, { type: 'log', message: `  ✏️  씬 ${scene.id} 텍스트 합성 완료` });
-    }
-
-    emit(projectId, { type: 'image', sceneId: scene.id, localPath });
-    emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.id} 이미지 완료` });
+  if (errors.length > 0) {
+    throw new Error(`이미지 생성 실패 (${errors.length}개 씬):\n${errors.join('\n')}`);
   }
 
   emit(projectId, { type: 'log', message: '✅ 이미지 생성 완료 — 확인 후 영상 생성을 진행해주세요' });

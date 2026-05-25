@@ -19,7 +19,7 @@ export const MODEL = {
   HAIKU: 'claude-haiku-4-5-20251001',
 } as const;
 
-async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, projectId?: string): Promise<string> {
+async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, projectId?: string, maxTokens?: number): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
 
@@ -32,7 +32,7 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
     const message = await client.messages.create(
       {
         model,
-        max_tokens: 16000,
+        max_tokens: maxTokens ?? (model === MODEL.OPUS ? 32000 : 16000),
         messages: [{ role: 'user', content: prompt }],
       },
       { signal: controller.signal }
@@ -114,12 +114,12 @@ async function runCLI(prompt: string, timeoutMs: number, model: string): Promise
 
 export async function runClaude(
   prompt: string,
-  options?: { timeoutMs?: number; model?: string; projectId?: string }
+  options?: { timeoutMs?: number; model?: string; projectId?: string; maxTokens?: number }
 ): Promise<string> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS, projectId } = options ?? {};
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS, projectId, maxTokens } = options ?? {};
 
   if (process.env.ANTHROPIC_API_KEY) {
-    return runClaudeSDK(prompt, timeoutMs, model, projectId);
+    return runClaudeSDK(prompt, timeoutMs, model, projectId, maxTokens);
   }
   return runCLI(prompt, timeoutMs, model);
 }
