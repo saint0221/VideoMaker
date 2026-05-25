@@ -130,8 +130,13 @@ ${factCheckSection}
     throw new Error('검수자가 script-review.md 내용을 생성하지 못했습니다.');
   }
 
-  writeFile(projectId, 'script-review.md', reviewContent);
+  const cleaned = reviewContent
+    .replace(/^```(?:markdown)?\r?\n/, '')
+    .replace(/\r?\n```\s*$/, '')
+    .trim();
+
+  writeFile(projectId, 'script-review.md', cleaned);
   emit(projectId, { type: 'log', message: '✅ script-review.md 저장 완료' });
 
-  return reviewContent;
+  return cleaned;
 }
