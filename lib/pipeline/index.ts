@@ -58,7 +58,7 @@ export async function runRevisionLoop(
   for (let pass = 0; pass < maxPasses; pass++) {
     updateStatus(projectId, 'running:revising');
     emit(projectId, { type: 'status', status: 'running:revising' });
-    currentScript = await runScriptReviser(projectId, currentScript, currentReview);
+    currentScript = await runScriptReviser(projectId, currentScript, currentReview, factCheckMd);
 
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });

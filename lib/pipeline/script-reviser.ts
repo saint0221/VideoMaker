@@ -102,7 +102,8 @@ function extractFinalScript(output: string): string {
 export async function runScriptReviser(
   projectId: string,
   scriptMd: string,
-  reviewMd: string
+  reviewMd: string,
+  factCheckMd?: string
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[수정] 검수 권장사항 적용 중...' });
 
@@ -134,6 +135,10 @@ export async function runScriptReviser(
     ? '- 🔴 필수 수정 항목은 이미 기계적으로 반영되어 있습니다. 되돌리지 마세요.'
     : '- 🔴 필수 수정 항목을 검수 리포트에서 확인하여 반드시 직접 반영하세요. 누락 시 재검수에서 불합격 처리됩니다.';
 
+  const factCheckSection = factCheckMd
+    ? `\n---\n\n## 팩트 체크 결과 (❌ 사실 오류는 반드시 수정)\n${factCheckMd}\n`
+    : '';
+
   // Step 2: LLM applies recommended fixes on top of the mechanically-fixed base
   const prompt = `당신은 한국어 유튜브 대본 편집 전문가입니다.
 검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
@@ -147,12 +152,13 @@ ${baseScript}
 
 ## 검수 리포트 (전체)
 ${reviewMd}
-
+${factCheckSection}
 ---
 
 ## 수정 원칙
 
 ${mandatoryInstruction}
+- 팩트 체크 결과의 "❌ 사실 오류" 항목은 반드시 수정하세요. "⚠️ 불확실" 항목은 판단 후 반영합니다.
 - "🟡 권장 수정"은 대본 품질을 높이는 항목만 반영합니다.
 - "🟢 잘된 점"은 유지합니다.
 - 대본의 전체 형식과 씬 구성은 유지하되, 문장 품질·흐름·TTS 친화성은 적극적으로 개선합니다.
