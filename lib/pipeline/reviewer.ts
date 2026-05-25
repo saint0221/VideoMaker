@@ -102,7 +102,8 @@ export async function runReviewer(
   topic: string,
   scriptMd: string,
   briefMd: string,
-  factCheckMd?: string
+  factCheckMd?: string,
+  language: 'ko' | 'en' = 'ko'
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[5단계] 대본 검수 중...' });
 
@@ -110,7 +111,12 @@ export async function runReviewer(
     ? `\n## 팩트 체크 결과 (fact-check.md)\n${factCheckMd}\n`
     : '';
 
+  const languageNote = language === 'en'
+    ? '\n🌐 언어 설정: 이 대본은 **영어 나레이션**으로 의도적으로 제작됩니다. 영어 사용 자체는 감점 사유가 아닙니다. 모든 항목을 영어 나레이션 기준으로 평가하세요.\n'
+    : '';
+
   const prompt = `${SYSTEM}
+${languageNote}
 
 ---
 
