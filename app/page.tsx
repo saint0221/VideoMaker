@@ -290,29 +290,6 @@ export default function HomePage() {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>언어:</span>
-            {(['ko', 'en'] as const).map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={() => setLanguage(lang)}
-                disabled={creating}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: 6,
-                  border: `1px solid ${language === lang ? 'var(--accent)' : 'var(--border)'}`,
-                  background: language === lang ? 'var(--accent)' : 'var(--surface-2)',
-                  color: language === lang ? '#fff' : 'var(--text-muted)',
-                  fontSize: 13,
-                  fontWeight: language === lang ? 600 : 400,
-                  cursor: creating ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {lang === 'ko' ? '🇰🇷 한국어' : '🇺🇸 English'}
-              </button>
-            ))}
-          </div>
         </form>
         {error && (
           <p style={{ color: 'var(--error)', fontSize: 13, marginTop: 8, marginBottom: 0 }}>
@@ -380,9 +357,9 @@ export default function HomePage() {
         )}
 
         <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 20 }}>
-          {/* 헤더: 타이틀 + 탭 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, flex: 1 }}>
+          {/* 헤더: 타이틀 + 언어 + 탭 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, flex: 1, minWidth: 120 }}>
               TTS 음성 선택
               {selectedVoiceId && voices.length > 0 && (
                 <span style={{ marginLeft: 8, color: 'var(--accent)', fontWeight: 500 }}>
@@ -390,6 +367,25 @@ export default function HomePage() {
                 </span>
               )}
             </p>
+            {(['ko', 'en'] as const).map((lang) => (
+              <button
+                key={lang}
+                onClick={() => setLanguage(lang)}
+                style={{
+                  fontSize: 12,
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  border: `1px solid ${language === lang ? 'var(--accent)' : 'var(--border)'}`,
+                  background: language === lang ? 'rgba(124,111,255,0.12)' : 'transparent',
+                  color: language === lang ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  fontWeight: language === lang ? 600 : 400,
+                }}
+              >
+                {lang === 'ko' ? '🇰🇷 한국어' : '🇺🇸 English'}
+              </button>
+            ))}
             {(['my', 'library'] as const).map(tab => (
               <button
                 key={tab}
