@@ -30,7 +30,7 @@ export function hasMandatoryRevisions(reviewMd: string): boolean {
   const body = match[1].trim();
   if (body.length === 0) return false;
   const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  return lines.length > 0 && !lines.every(l => /^-?\s*(없음|해당\s*없음)\s*$/.test(l));
+  return lines.length > 0 && !lines.every(l => /^-?\s*"?(없음|해당\s*없음)"?\s*$/.test(l));
 }
 
 export function handleError(projectId: string, err: unknown): void {
