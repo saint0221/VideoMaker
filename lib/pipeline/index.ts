@@ -253,7 +253,7 @@ export async function runPostScript(projectId: string) {
     // Stage 8: Image Prompter
     updateStatus(projectId, 'running:prompts');
     emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd);
+    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, findReferenceImage(projectId) ?? undefined);
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
