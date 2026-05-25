@@ -51,6 +51,7 @@ export default function HomePage() {
   const [addingVoiceId, setAddingVoiceId] = useState('');
   const [voicesError, setVoicesError] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+  const [language, setLanguage] = useState<'ko' | 'en'>('ko');
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
@@ -210,7 +211,7 @@ export default function HomePage() {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topic.trim(), aspectRatio }),
+        body: JSON.stringify({ topic: topic.trim(), aspectRatio, language }),
       });
       if (!res.ok) throw new Error('프로젝트 생성 실패');
       const project: Project = await res.json();
@@ -286,6 +287,29 @@ export default function HomePage() {
                 }}
               >
                 {r === '16:9' ? '16:9 (가로)' : '9:16 (숏츠)'}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>언어:</span>
+            {(['ko', 'en'] as const).map((lang) => (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => setLanguage(lang)}
+                disabled={creating}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  border: `1px solid ${language === lang ? 'var(--accent)' : 'var(--border)'}`,
+                  background: language === lang ? 'var(--accent)' : 'var(--surface-2)',
+                  color: language === lang ? '#fff' : 'var(--text-muted)',
+                  fontSize: 13,
+                  fontWeight: language === lang ? 600 : 400,
+                  cursor: creating ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {lang === 'ko' ? '🇰🇷 한국어' : '🇺🇸 English'}
               </button>
             ))}
           </div>

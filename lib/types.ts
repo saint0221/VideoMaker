@@ -59,6 +59,7 @@ export interface Project {
   capcutDraftId?: string;
   capcutTimelineId?: string;
   aspectRatio?: '16:9' | '9:16';
+  language?: 'ko' | 'en';
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
   llmCostUsd?: number;
 }

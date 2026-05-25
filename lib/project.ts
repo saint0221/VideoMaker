@@ -33,7 +33,7 @@ export function projectFile(id: string, filename: string) {
   return path.join(DATA_DIR, id, filename);
 }
 
-export function createProject(topic: string, aspectRatio?: '16:9' | '9:16'): Project {
+export function createProject(topic: string, aspectRatio?: '16:9' | '9:16', language?: 'ko' | 'en'): Project {
   ensureDir(DATA_DIR);
   const id = uniqueSlug(slugify(topic));
   const dir = projectDir(id);
@@ -45,6 +45,7 @@ export function createProject(topic: string, aspectRatio?: '16:9' | '9:16'): Pro
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     aspectRatio: aspectRatio ?? '16:9',
+    language: language ?? 'ko',
   };
   saveProject(project);
   return project;

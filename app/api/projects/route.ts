@@ -29,12 +29,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { topic, aspectRatio } = await req.json();
+  const { topic, aspectRatio, language } = await req.json();
   if (!topic?.trim()) {
     return NextResponse.json({ error: '토픽을 입력해주세요.' }, { status: 400 });
   }
 
   const ratio = aspectRatio === '9:16' ? '9:16' : '16:9';
-  const project = createProject(topic.trim(), ratio);
+  const lang = language === 'en' ? 'en' : 'ko';
+  const project = createProject(topic.trim(), ratio, lang);
   return NextResponse.json(project, { status: 201 });
 }
