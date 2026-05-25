@@ -103,7 +103,8 @@ export async function runScriptReviser(
   projectId: string,
   scriptMd: string,
   reviewMd: string,
-  factCheckMd?: string
+  factCheckMd?: string,
+  language: 'ko' | 'en' = 'ko'
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[수정] 검수 권장사항 적용 중...' });
 
@@ -139,8 +140,12 @@ export async function runScriptReviser(
     ? `\n---\n\n## 팩트 체크 결과 (❌ 사실 오류는 반드시 수정)\n${factCheckMd}\n`
     : '';
 
+  const languageInstruction = language === 'en'
+    ? 'You are a professional YouTube script editor. Narration must be written in English.'
+    : '당신은 한국어 유튜브 대본 편집 전문가입니다. 나레이션은 반드시 한국어로 작성합니다.';
+
   // Step 2: LLM applies recommended fixes on top of the mechanically-fixed base
-  const prompt = `당신은 한국어 유튜브 대본 편집 전문가입니다.
+  const prompt = `${languageInstruction}
 검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
 
 ---

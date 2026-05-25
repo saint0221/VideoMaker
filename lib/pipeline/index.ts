@@ -47,7 +47,8 @@ export async function runRevisionLoop(
   review: string,
   briefMd: string,
   factCheckMd: string | undefined,
-  maxPasses = 3
+  maxPasses = 3,
+  language: 'ko' | 'en' = 'ko'
 ): Promise<{ script: string; reviewMd: string; score: number; verdict: string }> {
   let currentScript = script;
   let currentReview = review;
@@ -58,7 +59,7 @@ export async function runRevisionLoop(
   for (let pass = 0; pass < maxPasses; pass++) {
     updateStatus(projectId, 'running:revising');
     emit(projectId, { type: 'status', status: 'running:revising' });
-    currentScript = await runScriptReviser(projectId, currentScript, currentReview, factCheckMd);
+    currentScript = await runScriptReviser(projectId, currentScript, currentReview, factCheckMd, language);
 
     updateStatus(projectId, 'running:review');
     emit(projectId, { type: 'status', status: 'running:review' });
@@ -209,7 +210,7 @@ export async function runPipelineFromPlanning(projectId: string) {
         : `📝 점수 ${score}점 (80점 미만)`;
       emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
       ({ reviewMd: reviewMdFinal, score, verdict } = await runRevisionLoop(
-        projectId, topic, scriptMd, reviewMdFinal, briefMd, factCheckMd
+        projectId, topic, scriptMd, reviewMdFinal, briefMd, factCheckMd, 3, language ?? 'ko'
       ));
     }
 
@@ -312,7 +313,7 @@ export async function resumePipeline(projectId: string) {
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   try {
-    const { topic } = project;
+    const { topic, language } = project;
 
     const research = readFile(projectId, 'research.md');
     const youtubeAnalysis = readFile(projectId, 'youtube-analysis.md');
@@ -386,7 +387,7 @@ export async function resumePipeline(projectId: string) {
     if (!script) {
       updateStatus(projectId, 'running:scripting', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:scripting' });
-      script = await runScriptwriter(projectId, topic, brief!, research, youtubeAnalysis ?? undefined);
+      script = await runScriptwriter(projectId, topic, brief!, research, youtubeAnalysis ?? undefined, language ?? 'ko');
       updateStatus(projectId, 'done:scripting');
       emit(projectId, { type: 'status', status: 'done:scripting' });
     }
@@ -413,7 +414,7 @@ export async function resumePipeline(projectId: string) {
           : `📝 점수 ${score}점 (80점 미만)`;
         emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
         ({ reviewMd: reviewMdFinal, score, verdict } = await runRevisionLoop(
-          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined
+          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined, 3, language ?? 'ko'
         ));
       }
 
@@ -444,7 +445,7 @@ export async function resumePipeline(projectId: string) {
           : `📝 점수 ${resolvedScore}점 (80점 미만)`;
         emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
         ({ reviewMd: reviewMdFinal, score: resolvedScore, verdict: resolvedVerdict } = await runRevisionLoop(
-          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined
+          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined, 3, language ?? 'ko'
         ));
       }
 
