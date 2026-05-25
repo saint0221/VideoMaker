@@ -1,8 +1,7 @@
 import fs from 'fs';
-import Anthropic from '@anthropic-ai/sdk';
 import { emit } from '../events';
 import { writeFile } from '../project';
-import { runClaude, MODEL } from './claude-runner';
+import { runClaude, runClaudeWithImage, MODEL } from './claude-runner';
 import { extractTargetSeconds } from './utils';
 
 const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
@@ -180,32 +179,11 @@ AI 이미지 모델은 앞뒤가 다른 오브젝트(스마트폰, 노트북, �
 "screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration"`;
 
 async function analyzeReferenceImage(imagePath: string): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const imageData = fs.readFileSync(imagePath);
-    const base64 = imageData.toString('base64');
-    const ext = imagePath.split('.').pop()?.toLowerCase() ?? 'jpeg';
-    const mediaType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-
-    const client = new Anthropic({ apiKey });
-    const message = await client.messages.create({
-      model: MODEL.HAIKU,
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: 'Describe this image\'s visual style in English for use as a reference in AI image generation. Focus on: color palette, lighting mood, film grain/texture, overall atmosphere, cinematic style. Be concise (80-120 words). Do not describe the subject matter — only the visual/photographic style.' },
-        ],
-      }],
-    });
-    const block = message.content[0];
-    return block.type === 'text' ? block.text.trim() : null;
-  } catch {
-    return null;
-  }
+  return runClaudeWithImage(
+    imagePath,
+    'Describe this image\'s visual style in English for use as a reference in AI image generation. Focus on: color palette, lighting mood, film grain/texture, overall atmosphere, cinematic style. Be concise (80-120 words). Do not describe the subject matter — only the visual/photographic style.',
+    { model: MODEL.HAIKU },
+  );
 }
 
 export async function runImagePrompter(

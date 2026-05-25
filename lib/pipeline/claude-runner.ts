@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import fs from 'fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { emit } from '../events';
 import { addLlmCost } from '../project';
@@ -121,4 +122,113 @@ export async function runClaude(
     return runClaudeSDK(prompt, timeoutMs, model, projectId);
   }
   return runCLI(prompt, timeoutMs, model);
+}
+
+async function runCLIWithImage(imagePath: string, textPrompt: string, timeoutMs: number, model: string): Promise<string | null> {
+  const imageData = fs.readFileSync(imagePath);
+  const base64 = imageData.toString('base64');
+  const ext = imagePath.split('.').pop()?.toLowerCase() ?? 'jpeg';
+  const mediaType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  const inputMessage = JSON.stringify({
+    type: 'user',
+    message: {
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+        { type: 'text', text: textPrompt },
+      ],
+    },
+  });
+
+  return new Promise((resolve) => {
+    const env = { ...process.env };
+    delete env.ANTHROPIC_API_KEY;
+
+    const child = spawn(CLAUDE_BIN, [
+      '--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', '',
+      '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
+    ], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+
+    let resolved = false;
+
+    const timer = setTimeout(() => {
+      if (!resolved) { resolved = true; child.kill('SIGTERM'); resolve(null); }
+    }, timeoutMs);
+
+    child.stdin.write(inputMessage, 'utf8');
+    child.stdin.end();
+
+    let stdout = '';
+    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+
+    child.on('close', (code: number | null) => {
+      clearTimeout(timer);
+      if (resolved) return;
+      resolved = true;
+      if (code !== 0) { resolve(null); return; }
+      for (const line of stdout.split('\n')) {
+        try {
+          const obj = JSON.parse(line.trim());
+          if (obj.type === 'result' && obj.result) { resolve(obj.result.trim()); return; }
+          if (obj.type === 'assistant') {
+            for (const block of (obj.message?.content ?? [])) {
+              if (block.type === 'text' && block.text) { resolve(block.text.trim()); return; }
+            }
+          }
+        } catch { /* skip */ }
+      }
+      resolve(null);
+    });
+
+    child.on('error', () => {
+      clearTimeout(timer);
+      if (!resolved) { resolved = true; resolve(null); }
+    });
+  });
+}
+
+async function runClaudeSDKWithImage(imagePath: string, textPrompt: string, timeoutMs: number, model: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY!;
+  const imageData = fs.readFileSync(imagePath);
+  const base64 = imageData.toString('base64');
+  const ext = imagePath.split('.').pop()?.toLowerCase() ?? 'jpeg';
+  const mediaType = (ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg') as 'image/png' | 'image/webp' | 'image/jpeg';
+
+  const client = new Anthropic({ apiKey });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const message = await client.messages.create({
+      model,
+      max_tokens: 500,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: textPrompt },
+        ],
+      }],
+    }, { signal: controller.signal });
+    const block = message.content[0];
+    return block.type === 'text' ? block.text.trim() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function runClaudeWithImage(
+  imagePath: string,
+  textPrompt: string,
+  options?: { timeoutMs?: number; model?: string }
+): Promise<string | null> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.HAIKU } = options ?? {};
+  if (!fs.existsSync(imagePath)) return null;
+  if (process.env.ANTHROPIC_API_KEY) {
+    return runClaudeSDKWithImage(imagePath, textPrompt, timeoutMs, model);
+  }
+  return runCLIWithImage(imagePath, textPrompt, timeoutMs, model);
 }
