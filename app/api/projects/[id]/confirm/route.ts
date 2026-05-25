@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject, readFile } from '@/lib/project';
-import { runPostScript, handleError, hasMandatoryRevisions } from '@/lib/pipeline';
+import { loadProject } from '@/lib/project';
+import { runPostScript, handleError } from '@/lib/pipeline';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,14 +12,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (project.status !== 'waiting:confirm') {
     return NextResponse.json({ error: '확인 단계가 아닙니다.' }, { status: 409 });
-  }
-
-  const reviewMd = readFile(id, 'script-review.md');
-  if (reviewMd && hasMandatoryRevisions(reviewMd)) {
-    return NextResponse.json(
-      { error: '🔴 필수 수정 항목이 남아있습니다. "권장사항 적용 후 재검수" 버튼으로 수정을 먼저 적용하세요.', hasRevisions: true },
-      { status: 422 }
-    );
   }
 
   runPostScript(id).catch((err) => handleError(id, err));
