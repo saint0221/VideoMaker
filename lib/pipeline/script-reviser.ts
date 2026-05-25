@@ -12,29 +12,38 @@ function extractMandatorySection(reviewMd: string): string {
   return match ? match[1].trim() : '';
 }
 
+function extractInlineQuote(text: string): string | null {
+  let m = text.match(/`"([^`]+)"`/);
+  if (m) return m[1];
+  m = text.match(/`([^`]+)`/);
+  if (m) return m[1];
+  m = text.match(/"([^"]+)"/);
+  if (m) return m[1];
+  return null;
+}
+
 function parseMandatoryFixes(mandatorySection: string): MandatoryFix[] {
   const fixes: MandatoryFix[] = [];
   const blocks = mandatorySection.split(/(?=\*\*\[)/);
 
   for (const block of blocks) {
-    const currentMatch = block.match(/\*\*현재(?:\s*대본)?\*\*[：:]\s*`"([^`]+)"`/);
+    const currentMatch = block.match(/\*\*현재(?:\s*대본)?\*\*[：:]\s*(.+)/);
     if (!currentMatch) continue;
-    const original = currentMatch[1];
+    const original = extractInlineQuote(currentMatch[1]);
+    if (!original) continue;
 
     let replacement: string | null = null;
 
-    // Find recommended 수정안 letter from 권장 line
     const recommendedMatch = block.match(/\*\*권장\*\*[^수]*(수정안\s*([A-Z]))/);
     if (recommendedMatch) {
       const letter = recommendedMatch[2];
-      const fixMatch = block.match(new RegExp(`\\*\\*수정안\\s*${letter}[^*]*\\*\\*[：:]\\s*\`"([^\`]+)"\``));
-      if (fixMatch) replacement = fixMatch[1];
+      const fixMatch = block.match(new RegExp(`\\*\\*수정안\\s*${letter}[^*]*\\*\\*[：:]\\s*(.+)`));
+      if (fixMatch) replacement = extractInlineQuote(fixMatch[1]);
     }
 
-    // Fallback: last 수정안 in block
     if (!replacement) {
-      const allFixes = [...block.matchAll(/\*\*수정안\s*[A-Z][^*]*\*\*[：:]\s*`"([^`]+)"`/g)];
-      if (allFixes.length > 0) replacement = allFixes[allFixes.length - 1][1];
+      const allFixes = [...block.matchAll(/\*\*수정안\s*[A-Z][^*]*\*\*[：:]\s*(.+)/g)];
+      if (allFixes.length > 0) replacement = extractInlineQuote(allFixes[allFixes.length - 1][1]);
     }
 
     if (replacement) fixes.push({ original, replacement });

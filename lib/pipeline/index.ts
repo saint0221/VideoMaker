@@ -47,7 +47,7 @@ export async function runRevisionLoop(
   review: string,
   briefMd: string,
   factCheckMd: string | undefined,
-  maxPasses = 2
+  maxPasses = 3
 ): Promise<{ script: string; reviewMd: string; score: number; verdict: string }> {
   let currentScript = script;
   let currentReview = review;
