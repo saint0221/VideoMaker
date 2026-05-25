@@ -274,7 +274,7 @@ export async function runImageGenerator(
 
     // Resolve effective reference: per-scene ref overrides global ref
     let effectiveImageUrl: string | null = referenceImageUrl;
-    let effectiveStrength = options?.referenceStrength ?? 0.75;
+    let effectiveStrength = options?.referenceStrength ?? 0.85;
 
     if (scene.sceneRef) {
       const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
