@@ -93,7 +93,7 @@ const SYSTEM = `당신은 유튜브 숏폼 스토리텔링 채널의 전문 대�
 
 ## 씬별 필수 요소 (각 씬마다 반드시 포함)
 
-1. 나레이션 — TTS로 읽힐 최종 텍스트 (한국어)
+1. 나레이션 — TTS로 읽힐 최종 텍스트
 2. 이미지 힌트 — 영상/이미지 AI 생성용 영어 프롬프트 (50자 이상)
 3. 사운드 힌트 — BGM 분위기, 효과음 메모
 
@@ -140,16 +140,26 @@ BGM: {장르/분위기}
 - 씬당 나레이션은 brief.md의 씬 예상 시간 × 약 5자/초
 - 전체 타임라인 합계는 brief.md의 예상 길이를 초과하지 않는다. 초과할 것 같으면 내용을 줄인다.
 - 이미지 힌트는 반드시 영어로 작성
-- 한국어로 나레이션 작성
+- 나레이션은 지정된 언어(한국어 또는 영어)로 작성
 - brief.md의 예상 길이를 초과하는 나레이션 작성 금지
 - 출력은 script-final.md 본문만 작성한다. 자체 점검 결과, 설명, 체크리스트, 마커, 코드블록은 출력하지 않는다`;
+
+const LANGUAGE_RULES: Record<'ko' | 'en', string> = {
+  ko: `- 나레이션 필드명: **나레이션**:
+- 나레이션은 한국어로 작성`,
+  en: `- Narration field name: **Narration**:
+- Write narration in English
+- Use natural spoken English — conversational, not formal
+- Banned opener phrases: "Today we're going to", "In this video", "Welcome to"`,
+};
 
 export async function runScriptwriter(
   projectId: string,
   topic: string,
   briefMd: string,
   researchMd: string,
-  youtubeAnalysisMd?: string
+  youtubeAnalysisMd?: string,
+  language: 'ko' | 'en' = 'ko'
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[4단계] 대본 작성 중...' });
 
@@ -157,7 +167,15 @@ export async function runScriptwriter(
     ? `\n## 유튜브 채널 분석 (youtube-analysis.md)\n${youtubeAnalysisMd}\n`
     : '';
 
+  const langRules = LANGUAGE_RULES[language];
+  const narrFieldLabel = language === 'en' ? '**Narration**:' : '**나레이션**:';
+
   const prompt = `${SYSTEM}
+
+## 언어 설정
+${langRules}
+
+출력 형식에서 나레이션 필드: ${narrFieldLabel}
 
 ---
 

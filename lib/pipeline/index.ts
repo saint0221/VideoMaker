@@ -158,7 +158,7 @@ export async function runPipelineFromPlanning(projectId: string) {
   if (!project) throw new Error(`Project ${projectId} not found`);
 
   try {
-    const { topic } = project;
+    const { topic, language } = project;
 
     const conceptMd = readFile(projectId, 'concept.md');
     const researchMd = readFile(projectId, 'research.md');
@@ -181,7 +181,7 @@ export async function runPipelineFromPlanning(projectId: string) {
     emit(projectId, { type: 'status', status: 'running:scripting' });
 
     const youtubeAnalysisMd = readFile(projectId, 'youtube-analysis.md') ?? undefined;
-    const scriptMd = await runScriptwriter(projectId, topic, briefMd, researchMd, youtubeAnalysisMd);
+    const scriptMd = await runScriptwriter(projectId, topic, briefMd, researchMd, youtubeAnalysisMd, language ?? 'ko');
 
     updateStatus(projectId, 'done:scripting');
     emit(projectId, { type: 'status', status: 'done:scripting' });

@@ -14,17 +14,17 @@ function parseNarrations(scriptMd: string): Array<{ id: string; text: string }> 
     if (!num) continue;
     const sceneId = num.padStart(2, '0');
 
-    // \n+ handles optional blank line between **나레이션**: and text
+    // \n+ handles optional blank line between **나레이션**: / **Narration**: and text
     const narrMatch = block.match(
-      /\*\*나레이션\*\*:[ \t]*\n+([\s\S]+?)(?=\n\s*\n\*\*이미지|\n\s*\n\*\*사운드|\n---|\n##|$)/i
+      /\*\*(?:나레이션|Narration)\*\*:[ \t]*\n+([\s\S]+?)(?=\n\s*\n\*\*|\n---|\n##|$)/i
     );
     if (!narrMatch) continue;
 
     let text = narrMatch[1].trim();
     // Remove surrounding quotes (Korean and ASCII)
     text = text.replace(/^[""„''"']+|[""„''"']+$/g, '').trim();
-    // Skip "no narration" markers like *(없음 — 화면이 말한다)*
-    if (/^\*?\(없음[^)]*\)\*?$/.test(text)) continue;
+    // Skip "no narration" markers
+    if (/^\*?\(없음[^)]*\)\*?$/.test(text) || /^\*?\(none[^)]*\)\*?$/i.test(text)) continue;
     if (text) scenes.push({ id: sceneId, text });
   }
 
