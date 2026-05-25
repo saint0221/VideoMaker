@@ -424,15 +424,27 @@ export async function resumePipeline(projectId: string) {
       return;
     }
 
-    // Review done but no scene-design → auto-confirm if eligible, otherwise restore confirm gate
+    // Review done but no scene-design → run revision loop if needed, then auto-confirm or gate
     if (!scene) {
-      const { score, verdict } = parseReviewScore(review);
-      const resolvedScore = project.reviewScore ?? score;
-      const resolvedVerdict = project.reviewVerdict ?? verdict;
+      let reviewMdFinal = review;
+      const { score: parsedScore, verdict: parsedVerdict } = parseReviewScore(review);
+      let resolvedScore = project.reviewScore ?? parsedScore;
+      let resolvedVerdict = project.reviewVerdict ?? parsedVerdict;
+
+      if (resolvedScore < 80 || hasMandatoryRevisions(reviewMdFinal)) {
+        const reason = hasMandatoryRevisions(reviewMdFinal)
+          ? '🔴 필수 수정 항목 감지'
+          : `📝 점수 ${resolvedScore}점 (80점 미만)`;
+        emit(projectId, { type: 'log', message: `${reason} — 자동 수정 중...` });
+        ({ reviewMd: reviewMdFinal, score: resolvedScore, verdict: resolvedVerdict } = await runRevisionLoop(
+          projectId, topic, script!, reviewMdFinal, brief!, factCheck ?? undefined
+        ));
+      }
+
       updateStatus(projectId, 'waiting:confirm', { reviewScore: resolvedScore, reviewVerdict: resolvedVerdict, error: undefined });
       emit(projectId, { type: 'review', score: resolvedScore, verdict: resolvedVerdict });
 
-      if (resolvedScore >= 80 && !hasMandatoryRevisions(review)) {
+      if (resolvedScore >= 80 && !hasMandatoryRevisions(reviewMdFinal)) {
         emit(projectId, { type: 'log', message: `✅ ${resolvedScore}점 — 자동 확정, 다음 단계 진행` });
         emit(projectId, { type: 'status', status: 'waiting:confirm' });
         await runPostScript(projectId);
