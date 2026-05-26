@@ -65,6 +65,7 @@ export interface Project {
   imageModel?: ImageModel;
   loraUrl?: string;
   loraScale?: number;
+  loraTriggerWord?: string;
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
   llmCostUsd?: number;
 }

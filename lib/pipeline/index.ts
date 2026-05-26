@@ -503,11 +503,12 @@ export function runImagesBackground(
   loraUrl?: string,
   loraScale?: number,
   sampleOnly?: boolean,
+  loraTriggerWord?: string,
 ): void {
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl, loraScale, sampleOnly });
+    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl, loraScale, sampleOnly, loraTriggerWord });
     if (sampleOnly) {
       updateStatus(projectId, 'waiting:sample-images');
       emit(projectId, { type: 'status', status: 'waiting:sample-images' });

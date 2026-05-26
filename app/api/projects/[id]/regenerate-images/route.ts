@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   updateStatus(id, 'running:images');
 
-  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, isSampleGate);
+  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, isSampleGate, project.loraTriggerWord);
 
   return NextResponse.json({ started: true });
 }

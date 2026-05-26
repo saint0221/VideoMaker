@@ -24,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const totalScenes = countScenes(promptsMd);
     const sampleOnly = totalScenes > SAMPLE_COUNT;
     updateStatus(id, 'running:images', { costPreview: undefined });
-    runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, sampleOnly);
+    runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, sampleOnly, project.loraTriggerWord);
     return NextResponse.json({ started: true });
   }
 

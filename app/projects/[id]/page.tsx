@@ -358,6 +358,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
   const [loraUrl, setLoraUrl] = useState('');
   const [loraScale, setLoraScale] = useState(1.0);
+  const [loraTriggerWord, setLoraTriggerWord] = useState('');
   const [sseActive, setSseActive] = useState(false);
   const [pipelineStarted, setPipelineStarted] = useState(false);
   const [hasSubtitles, setHasSubtitles] = useState(false);
@@ -382,6 +383,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         if (p.imageModel) setImageModel(p.imageModel);
         if (p.loraUrl) setLoraUrl(p.loraUrl);
         if (p.loraScale !== undefined) setLoraScale(p.loraScale);
+        if (p.loraTriggerWord) setLoraTriggerWord(p.loraTriggerWord);
         if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
           connectSSE();
         }
@@ -580,6 +582,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ loraUrl: url }),
+    });
+  }
+
+  async function handleLoraTriggerWordBlur(word: string) {
+    setLoraTriggerWord(word);
+    await fetch(`/api/projects/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loraTriggerWord: word }),
     });
   }
 
@@ -825,6 +836,21 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               fontSize: 11,
               flexShrink: 0,
             }}>{loraScale.toFixed(1)}</span>
+            {loraTriggerWord && (
+              <>
+                <span style={{ flexShrink: 0 }}>트리거</span>
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
+                  color: 'var(--accent)',
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  flexShrink: 0,
+                }}>{loraTriggerWord}</span>
+              </>
+            )}
           </>
         )}
       </div>
@@ -890,7 +916,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               )}
           </div>
           {loraUrl && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
               <button
                 onClick={() => handleLoraScaleChange(loraScale - 0.1)}
@@ -904,6 +930,28 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale >= 2.0 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale >= 2.0 ? 0.4 : 1 }}
               >+</button>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
+            </div>
+          )}
+          {loraUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>트리거 워드</span>
+              <input
+                type="text"
+                value={loraTriggerWord}
+                onChange={e => setLoraTriggerWord(e.target.value)}
+                onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
+                placeholder="예: ohwx man"
+                style={{
+                  flex: 1,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
             </div>
           )}
           <button className="btn btn-primary" onClick={startPipeline}>
@@ -1205,7 +1253,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
             {loraUrl && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, marginBottom: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
                 <button
                   onClick={() => handleLoraScaleChange(loraScale - 0.1)}
@@ -1219,6 +1267,28 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale >= 2.0 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale >= 2.0 ? 0.4 : 1 }}
                 >+</button>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
+              </div>
+            )}
+            {loraUrl && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>트리거 워드</span>
+                <input
+                  type="text"
+                  value={loraTriggerWord}
+                  onChange={e => setLoraTriggerWord(e.target.value)}
+                  onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
+                  placeholder="예: ohwx man"
+                  style={{
+                    flex: 1,
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '5px 10px',
+                    fontSize: 12,
+                    color: 'var(--text)',
+                    outline: 'none',
+                  }}
+                />
               </div>
             )}
           </div>
