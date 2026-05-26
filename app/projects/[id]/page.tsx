@@ -65,7 +65,7 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
   {
     key: 'images',
     label: '이미지',
-    statuses: ['waiting:cost-images', 'running:images', 'done:images', 'waiting:images'],
+    statuses: ['waiting:cost-images', 'running:images', 'done:images', 'waiting:sample-images', 'waiting:images'],
   },
   {
     key: 'video',
@@ -99,7 +99,7 @@ function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isR
   return String(stageIndex + 1);
 }
 
-const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:cost-images', 'waiting:images', 'waiting:cost-video'];
+const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:cost-images', 'waiting:sample-images', 'waiting:images', 'waiting:cost-video'];
 
 function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; paused: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
@@ -357,6 +357,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [confirmingImages, setConfirmingImages] = useState(false);
   const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
   const [loraUrl, setLoraUrl] = useState('');
+  const [loraScale, setLoraScale] = useState(1.0);
   const [sseActive, setSseActive] = useState(false);
   const [pipelineStarted, setPipelineStarted] = useState(false);
   const [hasSubtitles, setHasSubtitles] = useState(false);
@@ -380,6 +381,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         if (p.llmCostUsd) setLlmCostUsd(p.llmCostUsd);
         if (p.imageModel) setImageModel(p.imageModel);
         if (p.loraUrl) setLoraUrl(p.loraUrl);
+        if (p.loraScale !== undefined) setLoraScale(p.loraScale);
         if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
           connectSSE();
         }
@@ -416,7 +418,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         const event: SSEEvent = JSON.parse(e.data);
         if (event.type === 'status') {
           if (!event.status) return;
-          if (event.status === 'waiting:images') { setRegenerating(false); setRegeneratingPrompts(false); }
+          if (event.status === 'waiting:images' || event.status === 'waiting:sample-images') { setRegenerating(false); setRegeneratingPrompts(false); }
           setProject(prev => prev ? { ...prev, status: event.status } : prev);
         } else if (event.type === 'log') {
           lastLogTimeRef.current = Date.now();
@@ -534,6 +536,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     await fetch(`/api/projects/${id}/regenerate-images`, { method: 'POST' });
   }
 
+  async function handleConfirmSamples() {
+    setLogs([]);
+    connectSSE();
+    await fetch(`/api/projects/${id}/confirm-samples`, { method: 'POST' });
+  }
+
   async function handleRegenerateOneImage(sceneId: string) {
     setRegenerating(true);
     setLogs([]);
@@ -572,6 +580,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ loraUrl: url }),
+    });
+  }
+
+  async function handleLoraScaleChange(scale: number) {
+    const clamped = Math.min(2.0, Math.max(0.1, Math.round(scale * 10) / 10));
+    setLoraScale(clamped);
+    await fetch(`/api/projects/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loraScale: clamped }),
     });
   }
 
@@ -668,17 +686,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const isWaitingConfirm = project.status === 'waiting:confirm';
   const isWaitingCostImages = project.status === 'waiting:cost-images';
   const isWaitingImages = project.status === 'waiting:images';
+  const isWaitingSampleImages = project.status === 'waiting:sample-images';
   const isWaitingCostVideo = project.status === 'waiting:cost-video';
   const isCompleted = project.status === 'completed';
   const isError = project.status === 'error';
   const isRunning = project.status?.startsWith('running:') ?? false;
 
-  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:cost-images', 'running:images'];
+  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:cost-images', 'running:images', 'waiting:sample-images'];
   const isErrorInImagePhase = isError && !!project.lastStatus && IMAGE_PHASE_STATUSES.includes(project.lastStatus);
   const VIDEO_OR_LATER: PipelineStatus[] = ['waiting:cost-video', 'running:video', 'done:video', 'running:capcut', 'completed'];
   const showUseExistingImages =
     generatedImages.length > 0 &&
     !isWaitingImages &&
+    !isWaitingSampleImages &&
     !isWaitingCostVideo &&
     !isRunning &&
     !VIDEO_OR_LATER.includes(project.status);
@@ -800,7 +820,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, maxWidth: 520, margin: '0 auto 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
               <input
                 type="url"
@@ -827,6 +847,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 >✕</button>
               )}
           </div>
+          {loraUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
+              <button
+                onClick={() => handleLoraScaleChange(loraScale - 0.1)}
+                disabled={loraScale <= 0.1}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale <= 0.1 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale <= 0.1 ? 0.4 : 1 }}
+              >−</button>
+              <span style={{ fontSize: 13, color: 'var(--text)', minWidth: 32, textAlign: 'center' }}>{loraScale.toFixed(1)}</span>
+              <button
+                onClick={() => handleLoraScaleChange(loraScale + 0.1)}
+                disabled={loraScale >= 2.0}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale >= 2.0 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale >= 2.0 ? 0.4 : 1 }}
+              >+</button>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
+            </div>
+          )}
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>
@@ -1027,6 +1064,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
             </div>
           </div>
+          {project.costPreview.toGenerate > 3 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, padding: '8px 12px', background: 'rgba(124,111,255,0.06)', borderRadius: 6 }}>
+              💡 먼저 3장 샘플을 생성합니다. 스타일 확인 후 나머지 {project.costPreview.toGenerate - 3}장을 생성합니다.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" onClick={() => handleConfirmCost('images')}>
               확인 — 이미지 생성 시작
@@ -1036,6 +1078,42 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 기존 이미지 재사용
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Sample image confirmation gate */}
+      {isWaitingSampleImages && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+            샘플 이미지 확인
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+            3장의 샘플 이미지를 확인하세요. 스타일이 마음에 들면 나머지 이미지를 생성합니다.
+          </p>
+          {generatedImages.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
+              {generatedImages.slice(0, 3).map(img => (
+                <div key={img.sceneId} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <img
+                    src={`/api/projects/${id}/media?file=${encodeURIComponent(img.localPath)}${img.ts ? `&t=${img.ts}` : ''}`}
+                    alt={`씬 ${img.sceneId}`}
+                    style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
+                  />
+                  <div style={{ padding: '6px 10px' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>씬 {img.sceneId}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={handleConfirmSamples} disabled={generatedImages.length === 0 || regenerating}>
+              이 스타일로 계속 생성
+            </button>
+            <button className="btn btn-outline" onClick={handleRegenerateImages} disabled={regenerating}>
+              {regenerating ? '⏳ 생성 중…' : '↻ 샘플 재생성'}
+            </button>
           </div>
         </div>
       )}

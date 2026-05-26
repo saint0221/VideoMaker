@@ -8,9 +8,13 @@ interface FalImageResult {
   images: Array<{ url: string; content_type: string }>;
 }
 
+export const SAMPLE_COUNT = 3;
+
 export interface ImageGeneratorOptions {
   imageModel?: ImageModel;
   loraUrl?: string;
+  loraScale?: number;
+  sampleOnly?: boolean;
 }
 
 interface TextComposite {
@@ -160,6 +164,10 @@ function parseImagePrompts(promptsMd: string): ParsedScene[] {
   return scenes;
 }
 
+export function countScenes(promptsMd: string): number {
+  return parseImagePrompts(promptsMd).length;
+}
+
 export function calcImageCost(projectId: string, promptsMd: string): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
   const scenes = parseImagePrompts(promptsMd);
   const alreadyDone = scenes.filter((s) =>
@@ -181,11 +189,14 @@ export async function runImageGenerator(
     return;
   }
 
-  const scenes = parseImagePrompts(promptsMd);
-  if (scenes.length === 0) {
+  const allScenes = parseImagePrompts(promptsMd);
+  if (allScenes.length === 0) {
     emit(projectId, { type: 'log', message: '⚠️ 이미지 프롬프트 파싱 실패 — 이미지 생성 건너뜀' });
     return;
   }
+
+  // Slice to sample scenes BEFORE the "already exists" filter
+  const scenes = options?.sampleOnly ? allScenes.slice(0, SAMPLE_COUNT) : allScenes;
 
   const characterAnchor = parseCharacterAnchor(promptsMd);
   if (characterAnchor) {
@@ -197,7 +208,8 @@ export async function runImageGenerator(
     ? { width: 1080, height: 1920 }
     : { width: 1920, height: 1080 };
 
-  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'})` });
+  const sampleLabel = options?.sampleOnly ? ` (샘플 ${scenes.length}장)` : '';
+  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'})${sampleLabel}` });
 
   const alreadyDoneImages = scenes.filter((s) =>
     fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
@@ -259,6 +271,7 @@ export async function runImageGenerator(
 
         const isSchnell = model === 'fal-ai/flux/schnell';
         const loraUrl = options?.loraUrl;
+        const loraScale = options?.loraScale ?? 1.0;
 
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
@@ -271,7 +284,7 @@ export async function runImageGenerator(
         };
 
         if (loraUrl) {
-          body.loras = [{ path: loraUrl, scale: 1.0 }];
+          body.loras = [{ path: loraUrl, scale: loraScale }];
         }
 
         const res = await fetch(endpoint, {

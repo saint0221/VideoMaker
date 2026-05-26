@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, readFile, updateStatus } from '@/lib/project';
 import { runImagesBackground, continueFromImages, handleError } from '@/lib/pipeline';
+import { countScenes, SAMPLE_COUNT } from '@/lib/pipeline/image-generator';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,8 +21,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!promptsMd) {
       return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
     }
+    const totalScenes = countScenes(promptsMd);
+    const sampleOnly = totalScenes > SAMPLE_COUNT;
     updateStatus(id, 'running:images', { costPreview: undefined });
-    runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl);
+    runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, sampleOnly);
     return NextResponse.json({ started: true });
   }
 

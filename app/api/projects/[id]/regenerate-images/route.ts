@@ -3,6 +3,7 @@ import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, readFile, updateStatus, projectDir } from '@/lib/project';
 import { runImagesBackground } from '@/lib/pipeline';
+import { SAMPLE_COUNT } from '@/lib/pipeline/image-generator';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,7 +13,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
 
-  if (project.status !== 'waiting:images') {
+  const isSampleGate = project.status === 'waiting:sample-images';
+  if (project.status !== 'waiting:images' && !isSampleGate) {
     return NextResponse.json({ error: '이미지 확인 대기 상태가 아닙니다.' }, { status: 409 });
   }
 
@@ -22,13 +24,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const body = await req.json().catch(() => ({}));
-  const scenes: string[] | undefined = body.scenes;
+  const scenes: string[] | undefined = isSampleGate ? undefined : body.scenes;
 
-  // 지정된 씬만 삭제하거나 (scenes 파라미터), 전체 삭제
+  // 샘플 게이트: 샘플 이미지만 삭제 / 일반: 지정 씬 또는 전체 삭제
   const imagesDir = path.join(projectDir(id), 'images');
   if (fs.existsSync(imagesDir)) {
-    for (const file of fs.readdirSync(imagesDir)) {
-      if (file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.webp')) {
+    const files = fs.readdirSync(imagesDir).filter(f =>
+      f.endsWith('.jpg') || f.endsWith('.png') || f.endsWith('.webp')
+    );
+    if (isSampleGate) {
+      // Delete only the sample images (first SAMPLE_COUNT by sort order)
+      const sampleFiles = files.sort().slice(0, SAMPLE_COUNT);
+      for (const file of sampleFiles) {
+        fs.unlinkSync(path.join(imagesDir, file));
+      }
+    } else {
+      for (const file of files) {
         if (!scenes || scenes.some(s => file.startsWith(`scene_${s}`))) {
           fs.unlinkSync(path.join(imagesDir, file));
         }
@@ -38,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   updateStatus(id, 'running:images');
 
-  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl);
+  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, isSampleGate);
 
   return NextResponse.json({ started: true });
 }
