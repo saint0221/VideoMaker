@@ -1,8 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { emit } from '../events';
-import { writeFileBinary, projectFile, projectDir, loadProject, appendCostLog } from '../project';
-import { uploadBufferToFal } from './utils';
+import { writeFileBinary, projectDir, loadProject, appendCostLog } from '../project';
 import type { ImageModel } from '../types';
 
 interface FalImageResult {
@@ -10,8 +9,6 @@ interface FalImageResult {
 }
 
 export interface ImageGeneratorOptions {
-  referenceImagePath?: string;
-  referenceStrength?: number;
   imageModel?: ImageModel;
 }
 
@@ -103,8 +100,6 @@ interface ParsedScene {
   prompt: string;
   negativePrompt?: string;
   textComposite?: TextComposite;
-  sceneRef?: string;
-  refStrength?: number;
 }
 
 function parseCharacterAnchor(promptsMd: string): string | null {
@@ -158,29 +153,10 @@ function parseImagePrompts(promptsMd: string): ParsedScene[] {
     const textBlock = block.match(/\*\*텍스트\s*합성\*\*[^\n]*\n([\s\S]+?)(?=\n---|\n##|$)/i);
     const textComposite = textBlock ? parseTextComposite(textBlock[1]) : undefined;
 
-    // Per-scene img2img reference: "**이미지 참조**: scene_01-A"
-    const refMatch = block.match(/\*\*이미지\s*참조\*\*:\s*scene[_-](\S+)/i);
-    const sceneRef = refMatch ? refMatch[1].toUpperCase().replace('_', '-') : undefined;
-
-    // Optional strength override: "**참조 강도**: 0.75"
-    const strengthMatch = block.match(/\*\*참조\s*강도\*\*:\s*([\d.]+)/i);
-    const refStrength = strengthMatch ? parseFloat(strengthMatch[1]) : undefined;
-
-    scenes.push({ id: sceneId, prompt, negativePrompt, textComposite, sceneRef, refStrength });
+    scenes.push({ id: sceneId, prompt, negativePrompt, textComposite });
   }
 
   return scenes;
-}
-
-async function uploadToFalStorage(filePath: string, apiKey: string): Promise<string | null> {
-  try {
-    const buffer = fs.readFileSync(filePath);
-    const ext = filePath.split('.').pop()?.toLowerCase() ?? 'jpg';
-    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-    return await uploadBufferToFal(apiKey, buffer, `reference.${ext}`, mimeType);
-  } catch {
-    return null;
-  }
 }
 
 export function calcImageCost(projectId: string, promptsMd: string): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
@@ -191,14 +167,6 @@ export function calcImageCost(projectId: string, promptsMd: string): { toGenerat
   const toGenerate = scenes.length - alreadyDone;
   const COST_PER_IMAGE = 0.025;
   return { toGenerate, skipped: alreadyDone, costPerUnit: COST_PER_IMAGE, totalCost: +(toGenerate * COST_PER_IMAGE).toFixed(4) };
-}
-
-export function findReferenceImage(projectId: string): string | null {
-  for (const ext of ['jpg', 'jpeg', 'png', 'webp']) {
-    const p = projectFile(projectId, `reference.${ext}`);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
 }
 
 export async function runImageGenerator(
@@ -221,17 +189,6 @@ export async function runImageGenerator(
   const characterAnchor = parseCharacterAnchor(promptsMd);
   if (characterAnchor) {
     emit(projectId, { type: 'log', message: '  🎭 캐릭터 앵커 적용 — 모든 씬에 일관된 인물 묘사 삽입' });
-  }
-
-  let referenceImageUrl: string | null = null;
-  if (options?.referenceImagePath) {
-    emit(projectId, { type: 'log', message: '  📎 레퍼런스 이미지 업로드 중…' });
-    referenceImageUrl = await uploadToFalStorage(options.referenceImagePath, apiKey);
-    if (referenceImageUrl) {
-      emit(projectId, { type: 'log', message: '  ✅ 레퍼런스 이미지 준비 완료 — 스타일 참조 적용' });
-    } else {
-      emit(projectId, { type: 'log', message: '  ⚠️ 레퍼런스 업로드 실패 — 레퍼런스 없이 생성합니다' });
-    }
   }
 
   const project = loadProject(projectId);
@@ -278,29 +235,6 @@ export async function runImageGenerator(
   let next = 0;
 
   async function processScene({ scene, absPath, localPath }: SceneTask): Promise<void> {
-    // Resolve per-scene ref ONCE before retry loop to avoid redundant uploads on retry
-    let effectiveImageUrl: string | null = referenceImageUrl;
-    let effectiveStrength = options?.referenceStrength ?? 0.85;
-
-    if (scene.sceneRef) {
-      const refPath = path.join(projectDir(projectId), `images/scene_${scene.sceneRef}.jpg`);
-      if (fs.existsSync(refPath)) {
-        emit(projectId, { type: 'log', message: `  📎 씬 ${scene.sceneRef} 참조 이미지 업로드 중…` });
-        const uploaded = await uploadToFalStorage(refPath, key);
-        if (uploaded) {
-          effectiveImageUrl = uploaded;
-          effectiveStrength = scene.refStrength ?? 0.75;
-          emit(projectId, { type: 'log', message: `  ✅ 씬 ${scene.sceneRef} 참조 준비 완료 (강도 ${effectiveStrength})` });
-        } else {
-          emit(projectId, { type: 'log', message: `  ⚠️ 참조 이미지 업로드 실패 — 레퍼런스 없이 생성` });
-          effectiveImageUrl = null;
-        }
-      } else {
-        emit(projectId, { type: 'log', message: `  ⚠️ 씬 ${scene.sceneRef} 이미지가 아직 없음 — 레퍼런스 없이 생성` });
-        effectiveImageUrl = null;
-      }
-    }
-
     let lastErr: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {
@@ -315,13 +249,8 @@ export async function runImageGenerator(
           ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
           : BASE_NEGATIVE;
 
-        // img2img uses a different endpoint; image_size is always sent to enforce target resolution
         const model = options?.imageModel ?? 'fal-ai/flux/dev';
-        const modelSupportsImg2Img = model === 'fal-ai/flux/dev' || model === 'fal-ai/fast-sdxl';
-        const useImg2Img = !!effectiveImageUrl && modelSupportsImg2Img;
-        const endpoint = useImg2Img
-          ? `https://fal.run/${model}/image-to-image`
-          : `https://fal.run/${model}`;
+        const endpoint = `https://fal.run/${model}`;
 
         const finalPrompt = characterAnchor
           ? `${characterAnchor}\n\n${scene.prompt}`
@@ -336,13 +265,8 @@ export async function runImageGenerator(
           guidance_scale: 5.0,
           num_inference_steps: isSchnell ? 4 : 35,
           enable_safety_checker: true,
+          image_size: imageSize,
         };
-
-        if (useImg2Img) {
-          body.image_url = effectiveImageUrl;
-          body.strength = effectiveStrength;
-        }
-        body.image_size = imageSize;
 
         const res = await fetch(endpoint, {
           method: 'POST',

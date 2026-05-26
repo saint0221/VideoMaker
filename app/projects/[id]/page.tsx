@@ -65,7 +65,7 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
   {
     key: 'images',
     label: '이미지',
-    statuses: ['waiting:reference', 'running:images', 'done:images', 'waiting:images'],
+    statuses: ['waiting:cost-images', 'running:images', 'done:images', 'waiting:images'],
   },
   {
     key: 'video',
@@ -99,7 +99,7 @@ function getStageNodeContent(stageIndex: number, currentStatusIndex: number, isR
   return String(stageIndex + 1);
 }
 
-const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:reference', 'waiting:cost-images', 'waiting:images', 'waiting:cost-video'];
+const ALL_WAITING_STATUSES: PipelineStatus[] = ['waiting:youtube-urls', 'waiting:concept', 'waiting:confirm', 'waiting:cost-images', 'waiting:images', 'waiting:cost-video'];
 
 function getStatusIndex(status: PipelineStatus, lastStatus?: PipelineStatus): { stageIdx: number; running: boolean; paused: boolean } {
   const effective = status === 'error' && lastStatus ? lastStatus : status;
@@ -355,10 +355,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [regeneratingConcepts, setRegeneratingConcepts] = useState(false);
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
-  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
-  const [referenceUploading, setReferenceUploading] = useState(false);
   const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
-  const referenceInputRef = useRef<HTMLInputElement>(null);
   const [sseActive, setSseActive] = useState(false);
   const [pipelineStarted, setPipelineStarted] = useState(false);
   const [hasSubtitles, setHasSubtitles] = useState(false);
@@ -386,12 +383,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         }
         fetch(`/api/projects/${id}/media?file=subtitles/scene_01.srt`)
           .then(r => setHasSubtitles(r.ok))
-          .catch(() => {});
-        fetch(`/api/projects/${id}/media?file=reference.jpg`)
-          .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.jpg&t=${Date.now()}`); })
-          .catch(() => {});
-        fetch(`/api/projects/${id}/media?file=reference.png`)
-          .then(r => { if (r.ok) setReferenceImageUrl(`/api/projects/${id}/media?file=reference.png&t=${Date.now()}`); })
           .catch(() => {});
         fetch(`/api/projects/${id}/images`)
           .then(r => r.json())
@@ -424,7 +415,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         if (event.type === 'status') {
           if (!event.status) return;
           if (event.status === 'waiting:images') { setRegenerating(false); setRegeneratingPrompts(false); }
-        if (event.status === 'waiting:reference') { setRegenerating(false); setRegeneratingPrompts(false); }
           setProject(prev => prev ? { ...prev, status: event.status } : prev);
         } else if (event.type === 'log') {
           lastLogTimeRef.current = Date.now();
@@ -553,14 +543,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     });
   }
 
-  async function handleStartImages() {
-    const res = await fetch(`/api/projects/${id}/start-images`, { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json() as { costPreview?: Project['costPreview'] };
-      setProject(prev => prev ? { ...prev, status: 'waiting:cost-images', costPreview: data.costPreview } : prev);
-    }
-  }
-
   async function handleConfirmCost(stage: 'images' | 'video') {
     setLogs([]);
     connectSSE();
@@ -572,23 +554,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     if (res.ok) {
       setProject(prev => prev ? { ...prev, status: stage === 'images' ? 'running:images' : 'running:video', costPreview: undefined } : prev);
     }
-  }
-
-  async function handleReferenceUpload(file: File) {
-    setReferenceUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`/api/projects/${id}/reference`, { method: 'POST', body: formData });
-    setReferenceUploading(false);
-    if (res.ok) {
-      const ext = file.type === 'image/png' ? 'png' : 'jpg';
-      setReferenceImageUrl(`/api/projects/${id}/media?file=reference.${ext}&t=${Date.now()}`);
-    }
-  }
-
-  async function handleReferenceDelete() {
-    await fetch(`/api/projects/${id}/reference`, { method: 'DELETE' });
-    setReferenceImageUrl(null);
   }
 
   async function handleImageModelChange(model: ImageModel) {
@@ -691,7 +656,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const isWaitingYoutubeUrls = project.status === 'waiting:youtube-urls';
   const isWaitingConcept = project.status === 'waiting:concept';
   const isWaitingConfirm = project.status === 'waiting:confirm';
-  const isWaitingReference = project.status === 'waiting:reference';
   const isWaitingCostImages = project.status === 'waiting:cost-images';
   const isWaitingImages = project.status === 'waiting:images';
   const isWaitingCostVideo = project.status === 'waiting:cost-video';
@@ -699,9 +663,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const isError = project.status === 'error';
   const isRunning = project.status?.startsWith('running:') ?? false;
 
-  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:reference', 'waiting:cost-images', 'running:images'];
+  const IMAGE_PHASE_STATUSES: PipelineStatus[] = ['running:prompts', 'done:prompts', 'waiting:cost-images', 'running:images'];
   const isErrorInImagePhase = isError && !!project.lastStatus && IMAGE_PHASE_STATUSES.includes(project.lastStatus);
-  const showStartImages = isWaitingReference || isErrorInImagePhase;
   const VIDEO_OR_LATER: PipelineStatus[] = ['waiting:cost-video', 'running:video', 'done:video', 'running:capcut', 'completed'];
   const showUseExistingImages =
     generatedImages.length > 0 &&
@@ -978,30 +941,28 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* Reference image — editable before pipeline starts or when waiting for reference */}
-      {((isIdle && !pipelineStarted) || isWaitingReference) && (
+      {/* Image cost preview gate */}
+      {isWaitingCostImages && project.costPreview && (
         <div className="card" style={{ marginBottom: 24 }}>
-          <input
-            ref={referenceInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={e => {
-              const file = e.target.files?.[0];
-              if (file) handleReferenceUpload(file);
-              e.target.value = '';
-            }}
-          />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-              레퍼런스 이미지
-            </h3>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>선택 — 이미지 생성 시 스타일 참조용</span>
-            {referenceImageUrl && (
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
+          <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
+            이미지 생성 예상 비용
+          </h3>
+          <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}>
+              <span style={{ color: 'var(--text-muted)' }}>생성할 이미지</span>
+              <span>{project.costPreview.toGenerate}장 × ${project.costPreview.costPerUnit}</span>
+            </div>
+            {project.costPreview.skipped > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6, color: 'var(--text-muted)' }}>
+                <span>이미 생성됨 (건너뜀)</span>
+                <span>{project.costPreview.skipped}장</span>
+              </div>
             )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <span>예상 총 비용</span>
+              <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
+            </div>
           </div>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>생성 모델</span>
             {(
@@ -1029,102 +990,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {referenceImageUrl ? (
-              <>
-                <div style={{ position: 'relative', display: 'inline-block', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', flexShrink: 0 }}>
-                  <img
-                    src={referenceImageUrl}
-                    alt="레퍼런스"
-                    style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
-                  />
-                  <button
-                    onClick={handleReferenceDelete}
-                    style={{
-                      position: 'absolute', top: 4, right: 4,
-                      background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
-                      width: 20, height: 20, cursor: 'pointer', color: '#fff', fontSize: 12,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >✕</button>
-                </div>
-                <button className="btn btn-outline" onClick={() => referenceInputRef.current?.click()} style={{ fontSize: 12 }}>
-                  📁 변경
-                </button>
-              </>
-            ) : (
-              <button
-                className="btn btn-outline"
-                disabled={referenceUploading}
-                onClick={() => referenceInputRef.current?.click()}
-                style={{ fontSize: 13 }}
-              >
-                {referenceUploading ? '⏳ 업로드 중…' : '📁 레퍼런스 이미지 업로드'}
-              </button>
-            )}
-
-            {showStartImages && (
-              <button className="btn btn-primary" onClick={handleStartImages} style={{ marginLeft: referenceImageUrl ? 0 : 'auto' }}>
-                🖼 이미지 생성 시작{referenceImageUrl ? ' (레퍼런스 적용)' : ''}
-              </button>
-            )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" onClick={() => handleConfirmCost('images')}>
+              확인 — 이미지 생성 시작
+            </button>
             {showUseExistingImages && (
-              <button
-                className="btn btn-outline"
-                onClick={handleUseExistingImages}
-                disabled={confirmingImages}
-                style={{ marginLeft: showStartImages ? 0 : 'auto' }}
-              >
-                {confirmingImages ? '⏳ 영상 생성 준비 중…' : `🎬 기존 이미지로 영상 생성 (${generatedImages.length}장)`}
+              <button className="btn btn-outline" onClick={handleUseExistingImages}>
+                기존 이미지 재사용
               </button>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Reference image — read-only when pipeline is running (not shown when editable card is visible) */}
-      {referenceImageUrl && !((isIdle && !pipelineStarted) || isWaitingReference) && (
-        <div className="card" style={{ marginBottom: 24 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>레퍼런스 이미지</h3>
-            <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
-          </div>
-          <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', display: 'inline-block' }}>
-            <img
-              src={referenceImageUrl}
-              alt="레퍼런스"
-              style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Image cost preview gate */}
-      {isWaitingCostImages && project.costPreview && (
-        <div className="card" style={{ marginBottom: 24 }}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-            이미지 생성 예상 비용
-          </h3>
-          <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}>
-              <span style={{ color: 'var(--text-muted)' }}>생성할 이미지</span>
-              <span>{project.costPreview.toGenerate}장 × ${project.costPreview.costPerUnit}</span>
-            </div>
-            {project.costPreview.skipped > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6, color: 'var(--text-muted)' }}>
-                <span>이미 생성됨 (건너뜀)</span>
-                <span>{project.costPreview.skipped}장</span>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-              <span>예상 총 비용</span>
-              <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
-            </div>
-          </div>
-          <button className="btn btn-primary" onClick={() => handleConfirmCost('images')}>
-            확인 — 이미지 생성 시작
-          </button>
         </div>
       )}
 
