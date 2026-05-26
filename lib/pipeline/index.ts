@@ -9,7 +9,7 @@ import { runScriptReviser } from './script-reviser';
 import { runTTS } from './tts';
 import { runSceneDesigner } from './scene-designer';
 import { runImagePrompter } from './image-prompter';
-import { runImageGenerator, findReferenceImage, calcImageCost } from './image-generator';
+import { runImageGenerator, calcImageCost } from './image-generator';
 import { runVideoGenerator, calcVideoCost } from './video-generator';
 import { runCapcutEditor } from './capcut-editor';
 import { emit } from '../events';
@@ -262,15 +262,11 @@ export async function runPostScript(projectId: string) {
     // Stage 8: Image Prompter
     updateStatus(projectId, 'running:prompts');
     emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, findReferenceImage(projectId) ?? undefined);
+    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd);
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
     // Stage 9: Show cost preview before image generation
-    const referenceImagePath = findReferenceImage(projectId) ?? undefined;
-    if (referenceImagePath) {
-      emit(projectId, { type: 'log', message: '📎 레퍼런스 이미지 감지 — 이미지 코스트 확인 대기 중' });
-    }
     const imageCostPreview = calcImageCost(projectId, promptsMd);
     updateStatus(projectId, 'waiting:cost-images', { costPreview: { stage: 'images', ...imageCostPreview } });
     emit(projectId, { type: 'status', status: 'waiting:cost-images' });
@@ -468,29 +464,18 @@ export async function resumePipeline(projectId: string) {
     if (!prompts) {
       updateStatus(projectId, 'running:prompts', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:prompts' });
-      prompts = await runImagePrompter(projectId, topic, scene!, script!, findReferenceImage(projectId) ?? undefined);
+      prompts = await runImagePrompter(projectId, topic, scene!, script!);
       updateStatus(projectId, 'done:prompts');
       emit(projectId, { type: 'status', status: 'done:prompts' });
     }
 
-    // Stage 9: Auto-start if reference image exists; otherwise wait at reference gate
+    // Stage 9: Wait at cost-images gate
     if (imageFiles.length === 0) {
-      const referenceImagePath = findReferenceImage(projectId) ?? undefined;
-      if (referenceImagePath) {
-        emit(projectId, { type: 'log', message: '📎 레퍼런스 이미지 감지 — 이미지 생성 자동 시작' });
-        updateStatus(projectId, 'running:images', { error: undefined });
-        emit(projectId, { type: 'status', status: 'running:images' });
-        await runImageGenerator(projectId, prompts!, { referenceImagePath });
-        updateStatus(projectId, 'waiting:images');
-        emit(projectId, { type: 'status', status: 'waiting:images' });
-        emit(projectId, { type: 'done' });
-      } else {
-        const costPreview = calcImageCost(projectId, prompts!);
-        updateStatus(projectId, 'waiting:cost-images', { error: undefined, costPreview: { stage: 'images', ...costPreview } });
-        emit(projectId, { type: 'status', status: 'waiting:cost-images' });
-        emit(projectId, { type: 'cost', stage: 'image', ...costPreview });
-        emit(projectId, { type: 'done' });
-      }
+      const costPreview = calcImageCost(projectId, prompts!);
+      updateStatus(projectId, 'waiting:cost-images', { error: undefined, costPreview: { stage: 'images', ...costPreview } });
+      emit(projectId, { type: 'status', status: 'waiting:cost-images' });
+      emit(projectId, { type: 'cost', stage: 'image', ...costPreview });
+      emit(projectId, { type: 'done' });
       return;
     }
 
@@ -505,13 +490,12 @@ export async function resumePipeline(projectId: string) {
 export function runImagesBackground(
   projectId: string,
   promptsMd: string,
-  referenceImagePath?: string,
   imageModel?: ImageModel,
 ): void {
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, { referenceImagePath, imageModel });
+    await runImageGenerator(projectId, promptsMd, { imageModel });
     updateStatus(projectId, 'waiting:images');
     emit(projectId, { type: 'status', status: 'waiting:images' });
     emit(projectId, { type: 'done' });

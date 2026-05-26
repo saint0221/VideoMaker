@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadProject, readFile, updateStatus, projectDir } from '@/lib/project';
-import { findReferenceImage } from '@/lib/pipeline/image-generator';
 import { runImagesBackground } from '@/lib/pipeline';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -39,8 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   updateStatus(id, 'running:images');
 
-  const referenceImagePath = findReferenceImage(id) ?? undefined;
-  runImagesBackground(id, promptsMd, referenceImagePath, project.imageModel);
+  runImagesBackground(id, promptsMd, project.imageModel);
 
   return NextResponse.json({ started: true });
 }

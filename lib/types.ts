@@ -24,7 +24,6 @@ export type PipelineStatus =
   | 'done:scene'
   | 'running:prompts'
   | 'done:prompts'
-  | 'waiting:reference'
   | 'waiting:cost-images'
   | 'running:images'
   | 'done:images'
