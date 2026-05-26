@@ -36,6 +36,8 @@ export type PipelineStatus =
   | 'completed'
   | 'error';
 
+export type ImageModel = 'fal-ai/flux/dev' | 'fal-ai/flux/schnell' | 'fal-ai/flux-pro' | 'fal-ai/fast-sdxl';
+
 export interface Concept {
   index: number;
   name: string;
@@ -60,6 +62,7 @@ export interface Project {
   capcutTimelineId?: string;
   aspectRatio?: '16:9' | '9:16';
   language?: 'ko' | 'en';
+  imageModel?: ImageModel;
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
   llmCostUsd?: number;
 }

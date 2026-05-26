@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { marked } from 'marked';
-import type { Project, PipelineStatus, SSEEvent, Concept } from '@/lib/types';
+import type { Project, PipelineStatus, SSEEvent, Concept, ImageModel } from '@/lib/types';
 
 function formatSec(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -357,6 +357,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [confirmingImages, setConfirmingImages] = useState(false);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
   const [referenceUploading, setReferenceUploading] = useState(false);
+  const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
   const referenceInputRef = useRef<HTMLInputElement>(null);
   const [sseActive, setSseActive] = useState(false);
   const [pipelineStarted, setPipelineStarted] = useState(false);
@@ -379,6 +380,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           setReviewData({ score: p.reviewScore, verdict: p.reviewVerdict });
         }
         if (p.llmCostUsd) setLlmCostUsd(p.llmCostUsd);
+        if (p.imageModel) setImageModel(p.imageModel);
         if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
           connectSSE();
         }
@@ -587,6 +589,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   async function handleReferenceDelete() {
     await fetch(`/api/projects/${id}/reference`, { method: 'DELETE' });
     setReferenceImageUrl(null);
+  }
+
+  async function handleImageModelChange(model: ImageModel) {
+    setImageModel(model);
+    await fetch(`/api/projects/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageModel: model }),
+    });
   }
 
   async function handleRegeneratePrompts() {
@@ -989,6 +1000,35 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             {referenceImageUrl && (
               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>✅ 설정됨 · 이미지 생성 시 자동 적용</span>
             )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>생성 모델</span>
+            {(
+              [
+                { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
+                { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
+                { value: 'fal-ai/flux-pro', label: 'FLUX.1 [pro]', desc: '상업용 최고품질' },
+                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
+              ] as Array<{ value: ImageModel; label: string; desc: string }>
+            ).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => handleImageModelChange(opt.value)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  border: imageModel === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: imageModel === opt.value ? 'rgba(124,111,255,0.15)' : 'transparent',
+                  color: imageModel === opt.value ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt.label} <span style={{ opacity: 0.7 }}>— {opt.desc}</span>
+              </button>
+            ))}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
