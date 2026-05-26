@@ -9,7 +9,7 @@ import { runScriptReviser } from './script-reviser';
 import { runTTS } from './tts';
 import { runSceneDesigner } from './scene-designer';
 import { runImagePrompter } from './image-prompter';
-import { runImageGenerator, calcImageCost } from './image-generator';
+import { runImageGenerator, calcImageCost, SAMPLE_COUNT, countScenes } from './image-generator';
 import { runVideoGenerator, calcVideoCost } from './video-generator';
 import { runCapcutEditor } from './capcut-editor';
 import { emit } from '../events';
@@ -479,6 +479,15 @@ export async function resumePipeline(projectId: string) {
       return;
     }
 
+    // If only sample images exist, go back to sample confirmation gate
+    const totalScenes = countScenes(prompts!);
+    if (totalScenes > SAMPLE_COUNT && imageFiles.length <= SAMPLE_COUNT) {
+      updateStatus(projectId, 'waiting:sample-images', { error: undefined });
+      emit(projectId, { type: 'status', status: 'waiting:sample-images' });
+      emit(projectId, { type: 'done' });
+      return;
+    }
+
     updateStatus(projectId, 'waiting:images', { error: undefined });
     emit(projectId, { type: 'status', status: 'waiting:images' });
     emit(projectId, { type: 'done' });
@@ -492,13 +501,20 @@ export function runImagesBackground(
   promptsMd: string,
   imageModel?: ImageModel,
   loraUrl?: string,
+  loraScale?: number,
+  sampleOnly?: boolean,
 ): void {
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl });
-    updateStatus(projectId, 'waiting:images');
-    emit(projectId, { type: 'status', status: 'waiting:images' });
+    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl, loraScale, sampleOnly });
+    if (sampleOnly) {
+      updateStatus(projectId, 'waiting:sample-images');
+      emit(projectId, { type: 'status', status: 'waiting:sample-images' });
+    } else {
+      updateStatus(projectId, 'waiting:images');
+      emit(projectId, { type: 'status', status: 'waiting:images' });
+    }
     emit(projectId, { type: 'done' });
   })().catch((err) => handleError(projectId, err));
 }

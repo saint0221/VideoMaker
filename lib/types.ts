@@ -27,6 +27,7 @@ export type PipelineStatus =
   | 'waiting:cost-images'
   | 'running:images'
   | 'done:images'
+  | 'waiting:sample-images'
   | 'waiting:images'
   | 'waiting:cost-video'
   | 'running:video'
@@ -63,6 +64,7 @@ export interface Project {
   language?: 'ko' | 'en';
   imageModel?: ImageModel;
   loraUrl?: string;
+  loraScale?: number;
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
   llmCostUsd?: number;
 }
