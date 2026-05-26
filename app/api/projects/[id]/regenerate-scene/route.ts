@@ -1,5 +1,7 @@
+import fs from 'fs';
+import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject, readFile, updateStatus } from '@/lib/project';
+import { loadProject, readFile, updateStatus, projectDir } from '@/lib/project';
 import { emit } from '@/lib/events';
 import { runSceneDesigner } from '@/lib/pipeline/scene-designer';
 
@@ -16,6 +18,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   if (!scriptMd || !briefMd) {
     return NextResponse.json({ error: 'script-final.md 또는 brief.md가 없습니다.' }, { status: 400 });
+  }
+
+  // 씬 설계가 바뀌면 이미지 프롬프트도 무효 — 미리 삭제해 stale 파일 재사용 방지
+  const promptsPath = path.join(projectDir(id), 'image-prompts.md');
+  if (fs.existsSync(promptsPath)) {
+    fs.unlinkSync(promptsPath);
   }
 
   updateStatus(id, 'running:scene');
