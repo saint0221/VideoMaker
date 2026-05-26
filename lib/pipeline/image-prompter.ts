@@ -155,7 +155,7 @@ blurry, low quality, watermark, text, nsfw, bright background, any elements, hor
 - 모든 씬 빠짐없이 포함
 - 한 씬에 이미지가 여러 장이면 반드시 -A, -B, -C 순서로 구분 (예: SCENE 02-A, SCENE 02-B). "CUT 1" 형식 절대 사용 금지
 - 이미지가 1장인 씬은 그냥 SCENE 01 (알파벳 붙이지 않음)
-- **클립 수 제한**: 총 이미지 슬롯 수(A/B 포함) ≤ floor(목표초 / 5). 씬 설계서에 이미 슬롯이 제한돼 있으면 그대로 따를 것
+- **클립 수 제한**: 총 이미지 슬롯 수(A/B 합산) ≤ floor(목표초 / 5). 씬 설계서에 이미 슬롯이 제한돼 있으면 그대로 따를 것
 - 씬 설계서에 명시된 스타일(예: 카툰, 레트로, 3D, 일러스트, flat design 등)을 반드시 그대로 유지할 것 — 절대 다른 스타일로 변경하지 말 것
 - 씬 설계서에 스타일 지시가 없는 경우에만 사진 리얼리즘 스타일 기본 적용 (documentary style, cinematic, photorealistic)
 - 역사 장면은 "historical photograph aesthetic, period accurate costumes, dramatic chiaroscuro lighting" 포함
@@ -177,6 +177,38 @@ AI 이미지 모델은 앞뒤가 다른 오브젝트(스마트폰, 노트북, �
 
 또한 해당 씬의 네거티브 프롬프트에 반드시 추가:
 "screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration"`;
+
+const ANCHOR_SYSTEM = `당신은 AI 이미지 생성 전문가입니다.
+아래 대본과 씬 설계서를 분석하여 image-prompts.md용 CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.
+
+CHARACTER_ANCHOR 규칙:
+- 등장하는 모든 인물의 외형을 영문으로 기술 (나이, 성별, 얼굴 특징, 머리색, 복장 등)
+- 2명 이상이면 "Main character:", "Secondary character:" 등으로 구분
+- 인물이 없는 영상이면 N/A 한 줄
+- 영문 50~100단어/인물
+
+STYLE_ANCHOR 규칙:
+- 영상 전체 색감·분위기·시네마틱 스타일을 영문으로 정의 (100~150단어)
+- 반드시 포함: Color palette, Film grade, Lighting mood, Visual tone, Cinematic reference
+
+출력 형식 — 아래 두 블록만, 그 외 내용은 절대 출력 금지:
+## CHARACTER_ANCHOR
+{내용}
+
+## STYLE_ANCHOR
+{내용}`;
+
+function parseSceneSections(md: string): Array<{ id: string; content: string }> {
+  const sections: Array<{ id: string; content: string }> = [];
+  const parts = md.split(/(?=^## SCENE \d+)/m);
+  for (const part of parts) {
+    const match = part.match(/^## SCENE (\d+)/m);
+    if (match) {
+      sections.push({ id: match[1], content: part.trim() });
+    }
+  }
+  return sections;
+}
 
 async function analyzeReferenceImage(imagePath: string): Promise<string | null> {
   return runClaudeWithImage(
@@ -217,11 +249,16 @@ export async function runImagePrompter(
     }
   }
 
-  const prompt = `${SYSTEM}
+  const sceneSections = parseSceneSections(sceneDesignMd);
 
----
+  if (sceneSections.length === 0) {
+    throw new Error('씬 설계서에서 씬 섹션을 파싱하지 못했습니다. scene-design.md의 형식을 확인하세요.');
+  }
 
-토픽: "${topic}"${durationConstraint}
+  emit(projectId, { type: 'log', message: `  📋 씬 ${sceneSections.length}개 파싱 — 앵커 생성 후 병렬 처리` });
+
+  // Step 1: anchor call — CHARACTER_ANCHOR + STYLE_ANCHOR only
+  const anchorInput = `토픽: "${topic}"
 ${referenceSection}
 ## 대본 (script-final.md)
 ${scriptFinalMd}
@@ -229,16 +266,73 @@ ${scriptFinalMd}
 ## 씬 설계서 (scene-design.md)
 ${sceneDesignMd}
 
-위 대본과 씬 설계서를 함께 참고하여 각 씬의 나레이션 의도·감정·이미지 힌트가 프롬프트에 일관되게 반영되도록 image-prompts.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
+CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
 
-  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId, timeoutMs: 20 * 60 * 1000 });
+  emit(projectId, { type: 'log', message: '  🎨 캐릭터·스타일 앵커 생성 중...' });
+  const anchorContent = await runClaude(
+    `${ANCHOR_SYSTEM}\n\n---\n\n${anchorInput}`,
+    { model: MODEL.SONNET, projectId, timeoutMs: 4 * 60 * 1000 },
+  );
 
-  if (!content) {
-    throw new Error('이미지 프롬프터가 image-prompts.md 내용을 생성하지 못했습니다.');
+  if (!anchorContent) {
+    throw new Error('앵커 생성 실패');
   }
+  emit(projectId, { type: 'log', message: `  ✅ 앵커 생성 완료 — 씬 ${sceneSections.length}개 병렬 생성 시작` });
 
-  writeFile(projectId, 'image-prompts.md', content);
+  // Step 2: parallel scene calls
+  const sceneResults = await Promise.all(
+    sceneSections.map(async (scene) => {
+      emit(projectId, { type: 'log', message: `  🖼 SCENE ${scene.id} 프롬프트 생성 중...` });
+
+      const result = await runClaude(
+        `${SYSTEM}
+
+⚠️ 이번 호출에서는 아래 지정된 씬 하나만 처리합니다.
+- CHARACTER_ANCHOR, STYLE_ANCHOR, 파일 제목 줄(# 이미지 생성 프롬프트: ...) 출력 금지
+- 첫 줄은 반드시 "## SCENE ${scene.id}" 또는 "## SCENE ${scene.id}-A"로 시작
+- 다른 씬 번호는 출력하지 마세요
+
+---
+
+토픽: "${topic}"${durationConstraint}
+${referenceSection}
+${anchorContent.trim()}
+
+## 대본 (script-final.md)
+${scriptFinalMd}
+
+## 처리할 씬 (scene-design.md 중 SCENE ${scene.id}만):
+${scene.content}
+
+이 씬의 이미지 프롬프트 슬롯만 출력하세요.`,
+        { model: MODEL.SONNET, projectId, timeoutMs: 8 * 60 * 1000 },
+      );
+
+      if (!result || !/##\s+SCENE/i.test(result)) {
+        throw new Error(`SCENE ${scene.id} 프롬프트 생성 실패 또는 내용 누락`);
+      }
+
+      emit(projectId, { type: 'log', message: `  ✅ SCENE ${scene.id} 완료` });
+      return { id: scene.id, content: result };
+    }),
+  );
+
+  emit(projectId, { type: 'log', message: `  🔀 ${sceneResults.length}개 씬 병합 중...` });
+
+  // Step 3: sort by numeric scene id and merge
+  sceneResults.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+
+  const mergedScenes = sceneResults
+    .map(({ content }) => {
+      const idx = content.search(/(?:##\s+SCENE|###\s+SLOT)/i);
+      return (idx > 0 ? content.slice(idx) : content).trim();
+    })
+    .join('\n\n---\n\n');
+
+  const finalContent = `# 이미지 생성 프롬프트: ${topic}\n\n${anchorContent.trim()}\n\n---\n\n${mergedScenes}`;
+
+  writeFile(projectId, 'image-prompts.md', finalContent);
   emit(projectId, { type: 'log', message: '✅ image-prompts.md 저장 완료' });
 
-  return content;
+  return finalContent;
 }
