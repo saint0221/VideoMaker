@@ -800,8 +800,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/flux/schnell') && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, maxWidth: 520, margin: '0 auto 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, maxWidth: 520, margin: '0 auto 16px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
               <input
                 type="url"
@@ -827,8 +826,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   title="LoRA 제거"
                 >✕</button>
               )}
-            </div>
-          )}
+          </div>
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>

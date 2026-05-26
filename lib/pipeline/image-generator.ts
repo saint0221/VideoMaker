@@ -258,7 +258,6 @@ export async function runImageGenerator(
           : scene.prompt;
 
         const isSchnell = model === 'fal-ai/flux/schnell';
-        const isFlux = model === 'fal-ai/flux/dev' || model === 'fal-ai/flux/schnell';
         const loraUrl = options?.loraUrl;
 
         const body: Record<string, unknown> = {
@@ -271,7 +270,7 @@ export async function runImageGenerator(
           image_size: imageSize,
         };
 
-        if (isFlux && loraUrl) {
+        if (loraUrl) {
           body.loras = [{ path: loraUrl, scale: 1.0 }];
         }
 
