@@ -285,6 +285,7 @@ export async function runImageGenerator(
 
         if (loraUrl) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
+          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용: scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
 
         const res = await fetch(endpoint, {
