@@ -14,7 +14,6 @@ export interface ImageGeneratorOptions {
   imageModel?: ImageModel;
   loraUrl?: string;
   loraScale?: number;
-  loraTriggerWord?: string;
   sampleOnly?: boolean;
 }
 
@@ -266,11 +265,9 @@ export async function runImageGenerator(
         const model = options?.imageModel ?? 'fal-ai/flux/dev';
         const endpoint = `https://fal.run/${model}`;
 
-        const triggerWord = options?.loraTriggerWord?.trim();
-        const basePrompt = characterAnchor
+        const finalPrompt = characterAnchor
           ? `${characterAnchor}\n\n${scene.prompt}`
           : scene.prompt;
-        const finalPrompt = triggerWord ? `${triggerWord}, ${basePrompt}` : basePrompt;
 
         const isSchnell = model === 'fal-ai/flux/schnell';
         const loraUrl = options?.loraUrl;
@@ -288,8 +285,7 @@ export async function runImageGenerator(
 
         if (loraUrl) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
-          const triggerLabel = triggerWord ? ` | trigger: "${triggerWord}"` : '';
-          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용: scale=${loraScale.toFixed(1)}${triggerLabel} — ${loraUrl}` });
+          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용: scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
 
         const res = await fetch(endpoint, {
