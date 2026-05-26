@@ -763,6 +763,33 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 0, marginBottom: 16 }}>
             파이프라인을 시작하면 리서치부터 전략 수립까지 자동으로 진행됩니다
           </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>이미지 모델</span>
+            {(
+              [
+                { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
+                { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
+                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
+              ] as Array<{ value: ImageModel; label: string; desc: string }>
+            ).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => handleImageModelChange(opt.value)}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  border: imageModel === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  background: imageModel === opt.value ? 'rgba(124,111,255,0.15)' : 'transparent',
+                  color: imageModel === opt.value ? 'var(--accent)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt.label} <span style={{ opacity: 0.7 }}>— {opt.desc}</span>
+              </button>
+            ))}
+          </div>
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>
@@ -962,33 +989,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <span>예상 총 비용</span>
               <span style={{ color: 'var(--accent)' }}>${project.costPreview.totalCost}</span>
             </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>생성 모델</span>
-            {(
-              [
-                { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
-                { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
-                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
-              ] as Array<{ value: ImageModel; label: string; desc: string }>
-            ).map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => handleImageModelChange(opt.value)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  fontSize: 11,
-                  border: imageModel === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
-                  background: imageModel === opt.value ? 'rgba(124,111,255,0.15)' : 'transparent',
-                  color: imageModel === opt.value ? 'var(--accent)' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {opt.label} <span style={{ opacity: 0.7 }}>— {opt.desc}</span>
-              </button>
-            ))}
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" onClick={() => handleConfirmCost('images')}>
