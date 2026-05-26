@@ -3,6 +3,7 @@ import path from 'path';
 import { emit } from '../events';
 import { writeFileBinary, projectFile, projectDir, loadProject, appendCostLog } from '../project';
 import { uploadBufferToFal } from './utils';
+import type { ImageModel } from '../types';
 
 interface FalImageResult {
   images: Array<{ url: string; content_type: string }>;
@@ -11,6 +12,7 @@ interface FalImageResult {
 export interface ImageGeneratorOptions {
   referenceImagePath?: string;
   referenceStrength?: number;
+  imageModel?: ImageModel;
 }
 
 interface TextComposite {
@@ -314,21 +316,25 @@ export async function runImageGenerator(
           : BASE_NEGATIVE;
 
         // img2img uses a different endpoint; image_size is always sent to enforce target resolution
-        const useImg2Img = !!effectiveImageUrl;
+        const model = options?.imageModel ?? 'fal-ai/flux/dev';
+        const modelSupportsImg2Img = model === 'fal-ai/flux/dev' || model === 'fal-ai/fast-sdxl';
+        const useImg2Img = !!effectiveImageUrl && modelSupportsImg2Img;
         const endpoint = useImg2Img
-          ? 'https://fal.run/fal-ai/flux/dev/image-to-image'
-          : 'https://fal.run/fal-ai/flux/dev';
+          ? `https://fal.run/${model}/image-to-image`
+          : `https://fal.run/${model}`;
 
         const finalPrompt = characterAnchor
           ? `${characterAnchor}\n\n${scene.prompt}`
           : scene.prompt;
 
+        const isSchnell = model === 'fal-ai/flux/schnell';
+
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
-          negative_prompt: negativePrompt,
-          num_inference_steps: 35,
-          guidance_scale: 5.0,
           num_images: 1,
+          negative_prompt: negativePrompt,
+          guidance_scale: 5.0,
+          num_inference_steps: isSchnell ? 4 : 35,
           enable_safety_checker: true,
         };
 

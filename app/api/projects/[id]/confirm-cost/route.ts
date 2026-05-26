@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     const referenceImagePath = findReferenceImage(id) ?? undefined;
     updateStatus(id, 'waiting:reference', { costPreview: undefined });
-    runImagesBackground(id, promptsMd, referenceImagePath);
+    runImagesBackground(id, promptsMd, referenceImagePath, project.imageModel);
     return NextResponse.json({ started: true });
   }
 

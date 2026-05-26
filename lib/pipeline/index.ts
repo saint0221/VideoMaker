@@ -13,6 +13,7 @@ import { runImageGenerator, findReferenceImage, calcImageCost } from './image-ge
 import { runVideoGenerator, calcVideoCost } from './video-generator';
 import { runCapcutEditor } from './capcut-editor';
 import { emit } from '../events';
+import type { ImageModel } from '../types';
 import {
   loadProject,
   updateStatus,
@@ -505,11 +506,12 @@ export function runImagesBackground(
   projectId: string,
   promptsMd: string,
   referenceImagePath?: string,
+  imageModel?: ImageModel,
 ): void {
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, referenceImagePath ? { referenceImagePath } : undefined);
+    await runImageGenerator(projectId, promptsMd, { referenceImagePath, imageModel });
     updateStatus(projectId, 'waiting:images');
     emit(projectId, { type: 'status', status: 'waiting:images' });
     emit(projectId, { type: 'done' });

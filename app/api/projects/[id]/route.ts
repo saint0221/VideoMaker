@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadProject, deleteProject } from '@/lib/project';
+import { loadProject, deleteProject, updateStatus } from '@/lib/project';
+import type { ImageModel } from '@/lib/types';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -17,4 +18,22 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
   return NextResponse.json({ deleted: true });
+}
+
+const VALID_IMAGE_MODELS: ImageModel[] = ['fal-ai/flux/dev', 'fal-ai/flux/schnell', 'fal-ai/fast-sdxl'];
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const project = loadProject(id);
+  if (!project) {
+    return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
+  }
+  const body = (await req.json()) as { imageModel?: ImageModel };
+  if (body.imageModel !== undefined) {
+    if (!VALID_IMAGE_MODELS.includes(body.imageModel)) {
+      return NextResponse.json({ error: '유효하지 않은 모델입니다.' }, { status: 400 });
+    }
+    updateStatus(id, project.status, { imageModel: body.imageModel });
+  }
+  return NextResponse.json({ ok: true });
 }
