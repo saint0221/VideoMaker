@@ -1149,6 +1149,79 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               ))}
             </div>
           )}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>이미지 모델</span>
+              {(
+                [
+                  { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
+                  { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
+                  { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
+                ] as Array<{ value: ImageModel; label: string; desc: string }>
+              ).map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleImageModelChange(opt.value)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontSize: 11,
+                    border: imageModel === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: imageModel === opt.value ? 'rgba(124,111,255,0.15)' : 'transparent',
+                    color: imageModel === opt.value ? 'var(--accent)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {opt.label} <span style={{ opacity: 0.7 }}>— {opt.desc}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
+              <input
+                type="url"
+                value={loraUrl}
+                onChange={e => setLoraUrl(e.target.value)}
+                onBlur={e => handleLoraUrlBlur(e.target.value)}
+                placeholder="https://huggingface.co/... 또는 fal.ai storage URL"
+                style={{
+                  flex: 1,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
+              {loraUrl && (
+                <button
+                  onClick={() => { setLoraUrl(''); handleLoraUrlBlur(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}
+                  title="LoRA 제거"
+                >✕</button>
+              )}
+            </div>
+            {loraUrl && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
+                <button
+                  onClick={() => handleLoraScaleChange(loraScale - 0.1)}
+                  disabled={loraScale <= 0.1}
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale <= 0.1 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale <= 0.1 ? 0.4 : 1 }}
+                >−</button>
+                <span style={{ fontSize: 13, color: 'var(--text)', minWidth: 32, textAlign: 'center' }}>{loraScale.toFixed(1)}</span>
+                <button
+                  onClick={() => handleLoraScaleChange(loraScale + 0.1)}
+                  disabled={loraScale >= 2.0}
+                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text)', cursor: loraScale >= 2.0 ? 'default' : 'pointer', fontSize: 14, lineHeight: 1, padding: '3px 8px', opacity: loraScale >= 2.0 ? 0.4 : 1 }}
+                >+</button>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
+              </div>
+            )}
+          </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button className="btn btn-primary" onClick={handleConfirmSamples} disabled={generatedImages.length === 0 || regenerating}>
               이 스타일로 계속 생성
