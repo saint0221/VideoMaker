@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, false);
+  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl, project.loraScale, false, project.loraTriggerWord);
 
   return NextResponse.json({ started: true });
 }
