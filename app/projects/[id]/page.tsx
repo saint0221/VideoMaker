@@ -787,6 +787,38 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
+      {/* Model / LoRA info bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, fontSize: 12, color: 'var(--text-muted)' }}>
+        <span style={{ flexShrink: 0 }}>이미지 모델</span>
+        <span style={{
+          padding: '2px 8px',
+          borderRadius: 4,
+          border: '1px solid var(--border)',
+          background: 'var(--surface-2)',
+          color: 'var(--accent)',
+          fontFamily: 'monospace',
+          fontSize: 11,
+        }}>{imageModel}</span>
+        {loraUrl && (
+          <>
+            <span style={{ flexShrink: 0 }}>LoRA</span>
+            <span style={{
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface-2)',
+              color: 'var(--text-muted)',
+              fontFamily: 'monospace',
+              fontSize: 11,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 320,
+            }} title={loraUrl}>{loraUrl}</span>
+          </>
+        )}
+      </div>
+
       {/* Start button (idle state) */}
       {isIdle && !pipelineStarted && (
         <div className="card" style={{ marginBottom: 24, textAlign: 'center' }}>
