@@ -25,6 +25,18 @@ import {
   writeCostReport,
 } from '../project';
 
+function injectTriggerWord(promptsMd: string, triggerWord: string): string {
+  const tw = triggerWord.trim();
+  if (!tw) return promptsMd;
+  return promptsMd.replace(
+    /(\*\*(?:프롬프트\s*\(영문\)|English\s+prompt)\*\*:\s*\n)([\s\S]*?)(\n\n\*\*(?:프롬프트\s*\(한글\)|한국어|Korean))/g,
+    (match, header, body, footer) => {
+      if (body.startsWith(tw)) return match;
+      return `${header}${tw}, ${body}${footer}`;
+    },
+  );
+}
+
 export function hasMandatoryRevisions(reviewMd: string): boolean {
   const match = reviewMd.match(/###\s*🔴\s*필수\s*수정\r?\n([\s\S]*?)(?=###|$)/);
   if (!match) return false;
@@ -508,7 +520,17 @@ export function runImagesBackground(
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl, loraScale, sampleOnly, loraTriggerWord });
+
+    let finalPromptsMd = promptsMd;
+    if (loraTriggerWord?.trim()) {
+      finalPromptsMd = injectTriggerWord(promptsMd, loraTriggerWord);
+      if (finalPromptsMd !== promptsMd) {
+        writeFile(projectId, 'image-prompts.md', finalPromptsMd);
+        emit(projectId, { type: 'log', message: `  🔑 트리거 워드 "${loraTriggerWord.trim()}" → image-prompts.md 주입 완료` });
+      }
+    }
+
+    await runImageGenerator(projectId, finalPromptsMd, { imageModel, loraUrl, loraScale, sampleOnly });
     if (sampleOnly) {
       updateStatus(projectId, 'waiting:sample-images');
       emit(projectId, { type: 'status', status: 'waiting:sample-images' });
