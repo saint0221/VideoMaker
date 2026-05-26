@@ -209,7 +209,8 @@ export async function runImageGenerator(
     : { width: 1920, height: 1080 };
 
   const sampleLabel = options?.sampleOnly ? ` (샘플 ${scenes.length}장)` : '';
-  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'})${sampleLabel}` });
+  const modelLabel = options?.imageModel ?? 'fal-ai/flux/dev';
+  emit(projectId, { type: 'log', message: `[9단계] 이미지 생성 (${scenes.length}개 씬, ${project?.aspectRatio ?? '16:9'}, ${modelLabel})${sampleLabel}` });
 
   const alreadyDoneImages = scenes.filter((s) =>
     fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
