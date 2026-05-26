@@ -327,12 +327,14 @@ export async function runImageGenerator(
           ? `${characterAnchor}\n\n${scene.prompt}`
           : scene.prompt;
 
+        const isSchnell = model === 'fal-ai/flux/schnell';
+
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
-          negative_prompt: negativePrompt,
-          num_inference_steps: 35,
-          guidance_scale: 5.0,
           num_images: 1,
+          negative_prompt: negativePrompt,
+          guidance_scale: 5.0,
+          num_inference_steps: isSchnell ? 4 : 35,
           enable_safety_checker: true,
         };
 

@@ -978,8 +978,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* Reference image — only editable before pipeline starts */}
-      {isIdle && !pipelineStarted && (
+      {/* Reference image — editable before pipeline starts or when waiting for reference */}
+      {((isIdle && !pipelineStarted) || isWaitingReference) && (
         <div className="card" style={{ marginBottom: 24 }}>
           <input
             ref={referenceInputRef}
@@ -1008,7 +1008,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               [
                 { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
                 { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
-                { value: 'fal-ai/flux-pro', label: 'FLUX.1 [pro]', desc: '상업용 최고품질' },
                 { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
               ] as Array<{ value: ImageModel; label: string; desc: string }>
             ).map(opt => (
@@ -1084,8 +1083,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       )}
 
-      {/* Reference image — read-only when pipeline is running */}
-      {referenceImageUrl && !(isIdle && !pipelineStarted) && (
+      {/* Reference image — read-only when pipeline is running (not shown when editable card is visible) */}
+      {referenceImageUrl && !((isIdle && !pipelineStarted) || isWaitingReference) && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>레퍼런스 이미지</h3>
