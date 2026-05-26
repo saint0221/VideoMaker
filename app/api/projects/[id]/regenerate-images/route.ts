@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   updateStatus(id, 'running:images');
 
-  runImagesBackground(id, promptsMd, project.imageModel);
+  runImagesBackground(id, promptsMd, project.imageModel, project.loraUrl);
 
   return NextResponse.json({ started: true });
 }

@@ -10,6 +10,7 @@ interface FalImageResult {
 
 export interface ImageGeneratorOptions {
   imageModel?: ImageModel;
+  loraUrl?: string;
 }
 
 interface TextComposite {
@@ -257,6 +258,8 @@ export async function runImageGenerator(
           : scene.prompt;
 
         const isSchnell = model === 'fal-ai/flux/schnell';
+        const isFlux = model === 'fal-ai/flux/dev' || model === 'fal-ai/flux/schnell';
+        const loraUrl = options?.loraUrl;
 
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
@@ -267,6 +270,10 @@ export async function runImageGenerator(
           enable_safety_checker: true,
           image_size: imageSize,
         };
+
+        if (isFlux && loraUrl) {
+          body.loras = [{ path: loraUrl, scale: 1.0 }];
+        }
 
         const res = await fetch(endpoint, {
           method: 'POST',

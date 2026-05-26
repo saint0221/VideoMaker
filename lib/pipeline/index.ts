@@ -491,11 +491,12 @@ export function runImagesBackground(
   projectId: string,
   promptsMd: string,
   imageModel?: ImageModel,
+  loraUrl?: string,
 ): void {
   (async () => {
     updateStatus(projectId, 'running:images');
     emit(projectId, { type: 'status', status: 'running:images' });
-    await runImageGenerator(projectId, promptsMd, { imageModel });
+    await runImageGenerator(projectId, promptsMd, { imageModel, loraUrl });
     updateStatus(projectId, 'waiting:images');
     emit(projectId, { type: 'status', status: 'waiting:images' });
     emit(projectId, { type: 'done' });
