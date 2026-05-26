@@ -815,6 +815,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               whiteSpace: 'nowrap',
               maxWidth: 320,
             }} title={loraUrl}>{loraUrl}</span>
+            <span style={{
+              padding: '2px 8px',
+              borderRadius: 4,
+              border: '1px solid var(--border)',
+              background: 'var(--surface-2)',
+              color: 'var(--text-muted)',
+              fontFamily: 'monospace',
+              fontSize: 11,
+              flexShrink: 0,
+            }}>{loraScale.toFixed(1)}</span>
           </>
         )}
       </div>
