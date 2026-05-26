@@ -28,12 +28,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!project) {
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
-  const body = (await req.json()) as { imageModel?: ImageModel };
+  const body = (await req.json()) as { imageModel?: ImageModel; loraUrl?: string };
+  const patch: Record<string, unknown> = {};
   if (body.imageModel !== undefined) {
     if (!VALID_IMAGE_MODELS.includes(body.imageModel)) {
       return NextResponse.json({ error: '유효하지 않은 모델입니다.' }, { status: 400 });
     }
-    updateStatus(id, project.status, { imageModel: body.imageModel });
+    patch.imageModel = body.imageModel;
+  }
+  if (body.loraUrl !== undefined) {
+    patch.loraUrl = body.loraUrl.trim() || undefined;
+  }
+  if (Object.keys(patch).length > 0) {
+    updateStatus(id, project.status, patch);
   }
   return NextResponse.json({ ok: true });
 }

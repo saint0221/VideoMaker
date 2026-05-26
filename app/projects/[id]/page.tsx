@@ -356,6 +356,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
   const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
+  const [loraUrl, setLoraUrl] = useState('');
   const [sseActive, setSseActive] = useState(false);
   const [pipelineStarted, setPipelineStarted] = useState(false);
   const [hasSubtitles, setHasSubtitles] = useState(false);
@@ -378,6 +379,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         }
         if (p.llmCostUsd) setLlmCostUsd(p.llmCostUsd);
         if (p.imageModel) setImageModel(p.imageModel);
+        if (p.loraUrl) setLoraUrl(p.loraUrl);
         if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
           connectSSE();
         }
@@ -562,6 +564,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageModel: model }),
+    });
+  }
+
+  async function handleLoraUrlBlur(url: string) {
+    await fetch(`/api/projects/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loraUrl: url }),
     });
   }
 
@@ -790,6 +800,35 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
+          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/flux/schnell') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, maxWidth: 520, margin: '0 auto 16px' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
+              <input
+                type="url"
+                value={loraUrl}
+                onChange={e => setLoraUrl(e.target.value)}
+                onBlur={e => handleLoraUrlBlur(e.target.value)}
+                placeholder="https://huggingface.co/... 또는 fal.ai storage URL"
+                style={{
+                  flex: 1,
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '5px 10px',
+                  fontSize: 12,
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
+              {loraUrl && (
+                <button
+                  onClick={() => { setLoraUrl(''); handleLoraUrlBlur(''); }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14, padding: '0 2px' }}
+                  title="LoRA 제거"
+                >✕</button>
+              )}
+            </div>
+          )}
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>

@@ -62,6 +62,7 @@ export interface Project {
   aspectRatio?: '16:9' | '9:16';
   language?: 'ko' | 'en';
   imageModel?: ImageModel;
+  loraUrl?: string;
   costPreview?: { stage: 'images' | 'video'; toGenerate: number; skipped: number; costPerUnit: number; totalCost: number };
   llmCostUsd?: number;
 }
