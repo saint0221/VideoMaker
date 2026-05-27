@@ -27,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     updateStatus(id, 'running:scene');
     emit(id, { type: 'status', status: 'running:scene' });
 
-    const sceneDesignMd = await runSceneDesigner(id, project!.topic, scriptMd!, briefMd!, project!.loraTriggerWord);
+    const sceneDesignMd = await runSceneDesigner(id, project!.topic, scriptMd!, briefMd!, project!.loraTriggerWord, project!.imageModel);
 
     updateStatus(id, 'running:prompts');
     emit(id, { type: 'status', status: 'running:prompts' });

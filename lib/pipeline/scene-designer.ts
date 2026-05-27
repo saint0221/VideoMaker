@@ -145,6 +145,7 @@ export async function runSceneDesigner(
   scriptMd: string,
   briefMd: string,
   loraTriggerWord?: string,
+  imageModel?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[7단계] 씬 설계 중...' });
 
@@ -160,9 +161,14 @@ export async function runSceneDesigner(
   const audioDurations = readSceneAudioDurations(projectId);
   const audioSection = audioDurations ? `\n\n${audioDurations}` : '';
 
-  const loraNote = loraTriggerWord?.trim()
-    ? `\n\n⚠️ LoRA 스타일 적용: 이 영상은 "${loraTriggerWord.trim()}" LoRA 스타일로 이미지를 생성합니다. 씬 설계 시 포토리얼리스틱/다큐멘터리 스타일 대신 "${loraTriggerWord.trim()}"에 맞는 시각 언어로 비주얼 컨셉과 이미지 프롬프트 힌트를 작성하세요. 전체 비주얼 컨셉의 스타일 방향도 이 LoRA 스타일을 기준으로 정의하세요.`
+  const isSdxl = !imageModel || imageModel === 'fal-ai/fast-sdxl';
+  const sdxlConstraint = isSdxl
+    ? `\n\n⚠️ 이미지 모델 제약 (SDXL 기반): 이 영상은 SDXL 계열 모델로 이미지를 생성합니다. SDXL은 복잡한 상호작용, 포즈, 공간 관계 지시를 잘 따르지 못합니다. 씬 구도를 설계할 때 다음 원칙을 따르세요:\n- 인물 간 상호작용(포옹, 악수, 싸움 등) 대신 각자의 독립적인 포즈·표정·위치로 장면 전달\n- 여러 피규어가 등장할 때 복잡한 군중 묘사 대신 1-2개 피규어 중심 구도\n- 동작보다 정적인 상태(서 있음, 앉아 있음, 바라봄)로 묘사\n- 이미지 프롬프트 힌트는 핵심 시각 요소 3-4개로 간결하게 작성`
     : '';
+
+  const loraNote = loraTriggerWord?.trim()
+    ? `\n\n⚠️ LoRA 스타일 적용: 이 영상은 "${loraTriggerWord.trim()}" LoRA 스타일로 이미지를 생성합니다. 씬 설계 시 포토리얼리스틱/다큐멘터리 스타일 대신 "${loraTriggerWord.trim()}"에 맞는 시각 언어로 비주얼 컨셉과 이미지 프롬프트 힌트를 작성하세요. 전체 비주얼 컨셉의 스타일 방향도 이 LoRA 스타일을 기준으로 정의하세요.${sdxlConstraint}`
+    : sdxlConstraint;
 
   const prompt = `${SYSTEM}
 
