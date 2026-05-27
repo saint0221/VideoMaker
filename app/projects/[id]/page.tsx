@@ -899,7 +899,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
+          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/fast-sdxl') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
               <input
                 type="url"
@@ -925,8 +926,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   title="LoRA 제거"
                 >✕</button>
               )}
-          </div>
-          {loraUrl && (
+            </div>
+          )}
+          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/fast-sdxl') && loraUrl && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
               <button
@@ -943,32 +945,30 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
             </div>
           )}
-          {loraUrl && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
-                <input
-                  type="text"
-                  value={loraTriggerWord}
-                  onChange={e => setLoraTriggerWord(e.target.value)}
-                  onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
-                  placeholder="예: ohwx man"
-                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>스타일 설명</span>
-                <input
-                  type="text"
-                  value={loraStyleDesc}
-                  onChange={e => setLoraStyleDesc(e.target.value)}
-                  onBlur={e => handleLoraStyleDescBlur(e.target.value)}
-                  placeholder="예: 수채화 애니메이션 스타일, 파스텔 색감"
-                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
-                />
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
+              <input
+                type="text"
+                value={loraTriggerWord}
+                onChange={e => setLoraTriggerWord(e.target.value)}
+                onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
+                placeholder="예: pixel art"
+                style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
+              />
             </div>
-          )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>스타일 설명</span>
+              <input
+                type="text"
+                value={loraStyleDesc}
+                onChange={e => setLoraStyleDesc(e.target.value)}
+                onBlur={e => handleLoraStyleDescBlur(e.target.value)}
+                placeholder="예: 수채화 애니메이션 스타일, 파스텔 색감"
+                style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
+              />
+            </div>
+          </div>
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>
@@ -1260,32 +1260,30 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </p>
             </div>
           )}
-          {loraUrl && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
-                <input
-                  type="text"
-                  value={loraTriggerWord}
-                  onChange={e => setLoraTriggerWord(e.target.value)}
-                  onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
-                  placeholder="예: ohwx man"
-                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>스타일 설명</span>
-                <input
-                  type="text"
-                  value={loraStyleDesc}
-                  onChange={e => setLoraStyleDesc(e.target.value)}
-                  onBlur={e => handleLoraStyleDescBlur(e.target.value)}
-                  placeholder="예: 수채화 애니메이션 스타일, 파스텔 색감"
-                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
-                />
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
+              <input
+                type="text"
+                value={loraTriggerWord}
+                onChange={e => setLoraTriggerWord(e.target.value)}
+                onBlur={e => handleLoraTriggerWordBlur(e.target.value)}
+                placeholder="예: pixel art"
+                style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
+              />
             </div>
-          )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>스타일 설명</span>
+              <input
+                type="text"
+                value={loraStyleDesc}
+                onChange={e => setLoraStyleDesc(e.target.value)}
+                onBlur={e => handleLoraStyleDescBlur(e.target.value)}
+                placeholder="예: 수채화 애니메이션 스타일, 파스텔 색감"
+                style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text)', outline: 'none' }}
+              />
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-success" onClick={handleImagesConfirm} disabled={generatedImages.length === 0 || confirmingImages || regenerating || regeneratingPrompts}>
               {confirmingImages ? '⏳ 영상 생성 준비 중…' : '✓ 이미지 확인 완료 — 영상 생성 시작'}
