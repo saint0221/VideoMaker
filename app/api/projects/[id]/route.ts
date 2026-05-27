@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!project) {
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 });
   }
-  const body = (await req.json()) as { imageModel?: ImageModel; loraUrl?: string; loraScale?: number; loraTriggerWord?: string };
+  const body = (await req.json()) as { imageModel?: ImageModel; loraUrl?: string; loraScale?: number; loraTriggerWord?: string; loraStyleDesc?: string };
   const patch: Record<string, unknown> = {};
   if (body.imageModel !== undefined) {
     if (!VALID_IMAGE_MODELS.includes(body.imageModel)) {
@@ -47,6 +47,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (body.loraTriggerWord !== undefined) {
     patch.loraTriggerWord = body.loraTriggerWord.trim() || undefined;
+  }
+  if (body.loraStyleDesc !== undefined) {
+    patch.loraStyleDesc = body.loraStyleDesc.trim() || undefined;
   }
   if (Object.keys(patch).length > 0) {
     updateStatus(id, project.status, patch);
