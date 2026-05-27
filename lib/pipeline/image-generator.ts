@@ -337,9 +337,10 @@ export async function runImageGenerator(
         const loraUrl = options?.loraUrl;
         const loraScale = options?.loraScale ?? 0.8;
 
-        // LoRA URL이 있으면 flux-lora 엔드포인트로 강제 전환 (flux/dev 등은 loras 파라미터 미지원)
+        // flux/schnell, flux-2는 loras 파라미터 미지원 → flux-lora로 강제 전환
         const baseModel = options?.imageModel ?? 'fal-ai/flux-lora';
-        const model = loraUrl ? 'fal-ai/flux-lora' : baseModel;
+        const loraCompatible = baseModel === 'fal-ai/flux-lora' || baseModel === 'fal-ai/fast-sdxl';
+        const model = loraUrl && !loraCompatible ? 'fal-ai/flux-lora' : baseModel;
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
@@ -364,9 +365,9 @@ export async function runImageGenerator(
           image_size: imageSize,
         };
 
-        if (isFluxLora && loraUrl) {
+        if ((isFluxLora || isFastSdxl) && loraUrl) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
-          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용 (flux-lora): scale=${loraScale.toFixed(1)} — ${loraUrl}` });
+          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용 (${model}): scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
 
         const res = await fetch(endpoint, {
