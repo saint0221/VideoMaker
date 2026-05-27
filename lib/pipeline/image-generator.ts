@@ -137,13 +137,26 @@ const CREATURE_TERMS = [
   'snake', 'hamster', 'deer', 'owl', 'eagle',
 ];
 
+// Words that indicate a human figure is present in the scene.
+// Excludes 'silhouette' (matches "brain silhouette") and uses word-boundary matching
+// to avoid substring false positives like "commanding" → "man", "demanding" → "man".
+const HUMAN_TERMS = [
+  'character', 'figure', 'person', 'woman', 'man',
+  'couple', 'pair', 'embrace', 'hug', 'standing', 'sitting',
+  'walking', 'people', 'someone',
+];
+const HUMAN_TERM_RE = new RegExp(`\\b(${HUMAN_TERMS.join('|')})\\b`);
+
 function filterCharactersForScene(entries: CharacterEntry[], scenePrompt: string): CharacterEntry[] {
   const promptLower = scenePrompt.toLowerCase();
   return entries.filter(entry => {
     const combined = `${entry.label} ${entry.description}`.toLowerCase();
     const entryCreatureTerms = CREATURE_TERMS.filter(t => combined.includes(t));
-    if (entryCreatureTerms.length === 0) return true;
-    return entryCreatureTerms.some(t => promptLower.includes(t));
+    if (entryCreatureTerms.length > 0) {
+      return entryCreatureTerms.some(t => promptLower.includes(t));
+    }
+    // Human entry: only include when the scene actually features a human figure
+    return HUMAN_TERM_RE.test(promptLower);
   });
 }
 
