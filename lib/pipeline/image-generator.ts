@@ -4,6 +4,13 @@ import { emit } from '../events';
 import { writeFileBinary, projectDir, loadProject, appendCostLog } from '../project';
 import type { ImageModel } from '../types';
 
+export const MODEL_PRICE: Record<ImageModel, number> = {
+  'fal-ai/flux-lora': 0.025,
+  'fal-ai/flux/schnell': 0.003,
+  'fal-ai/fast-sdxl': 0.003,
+  'fal-ai/flux-2': 0.025,
+};
+
 interface FalImageResult {
   images: Array<{ url: string; content_type: string }>;
 }
@@ -233,13 +240,13 @@ export function countScenes(promptsMd: string): number {
   return parseImagePrompts(promptsMd).length;
 }
 
-export function calcImageCost(projectId: string, promptsMd: string): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
+export function calcImageCost(projectId: string, promptsMd: string, imageModel?: ImageModel): { toGenerate: number; skipped: number; costPerUnit: number; totalCost: number } {
   const scenes = parseImagePrompts(promptsMd);
   const alreadyDone = scenes.filter((s) =>
     fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
   ).length;
   const toGenerate = scenes.length - alreadyDone;
-  const COST_PER_IMAGE = 0.025;
+  const COST_PER_IMAGE = MODEL_PRICE[imageModel ?? 'fal-ai/flux-lora'];
   return { toGenerate, skipped: alreadyDone, costPerUnit: COST_PER_IMAGE, totalCost: +(toGenerate * COST_PER_IMAGE).toFixed(4) };
 }
 
@@ -279,7 +286,7 @@ export async function runImageGenerator(
   const alreadyDoneImages = scenes.filter((s) =>
     fs.existsSync(path.join(projectDir(projectId), `images/scene_${s.id}.jpg`))
   ).length;
-  const COST_PER_IMAGE = 0.025;
+  const COST_PER_IMAGE = MODEL_PRICE[options?.imageModel ?? 'fal-ai/flux-lora'];
   const imagesToGenerate = scenes.length - alreadyDoneImages;
   const imageCostEntry = {
     timestamp: new Date().toISOString(),

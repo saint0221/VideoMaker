@@ -25,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'image-prompts.md를 찾을 수 없습니다.' }, { status: 400 });
   }
 
-  const cost = calcImageCost(id, promptsMd);
+  const cost = calcImageCost(id, promptsMd, project.imageModel);
   const costPreview = { stage: 'images' as const, ...cost };
   updateStatus(id, 'waiting:cost-images', { costPreview, error: undefined });
 
