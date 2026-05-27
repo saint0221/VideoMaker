@@ -107,11 +107,48 @@ interface ParsedScene {
   textComposite?: TextComposite;
 }
 
-function parseCharacterAnchor(promptsMd: string): string | null {
+interface CharacterEntry {
+  label: string;
+  description: string;
+}
+
+function parseCharacterEntries(promptsMd: string): CharacterEntry[] {
   const match = promptsMd.match(/##\s*CHARACTER_ANCHOR\s*\n([\s\S]+?)(?=\n---|\n##\s+)/i);
-  if (!match) return null;
+  if (!match) return [];
   const anchor = match[1].trim();
-  return anchor && anchor !== 'N/A' ? anchor : null;
+  if (!anchor || anchor === 'N/A') return [];
+  const entries: CharacterEntry[] = [];
+  for (const block of anchor.split(/\n\n+/)) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx === -1) continue;
+    const label = trimmed.substring(0, colonIdx).trim();
+    const description = trimmed.substring(colonIdx + 1).trim();
+    if (label && description) entries.push({ label, description });
+  }
+  return entries;
+}
+
+const CREATURE_TERMS = [
+  'dog', 'cat', 'horse', 'bird', 'fish', 'wolf', 'fox', 'bear', 'lion', 'tiger',
+  'rabbit', 'retriever', 'labrador', 'poodle', 'husky', 'bulldog', 'corgi',
+  'parrot', 'dragon', 'monster', 'creature', 'animal', 'puppy', 'kitten',
+  'snake', 'hamster', 'deer', 'owl', 'eagle',
+];
+
+function filterCharactersForScene(entries: CharacterEntry[], scenePrompt: string): CharacterEntry[] {
+  const promptLower = scenePrompt.toLowerCase();
+  return entries.filter(entry => {
+    const combined = `${entry.label} ${entry.description}`.toLowerCase();
+    const entryCreatureTerms = CREATURE_TERMS.filter(t => combined.includes(t));
+    if (entryCreatureTerms.length === 0) return true;
+    return entryCreatureTerms.some(t => promptLower.includes(t));
+  });
+}
+
+function buildAnchorString(entries: CharacterEntry[]): string {
+  return entries.map(e => `${e.label}: ${e.description}`).join('\n\n');
 }
 
 // SDXL 77-token CLIP limit: compress CHARACTER_ANCHOR to ~10 essential visual tokens.
@@ -213,9 +250,9 @@ export async function runImageGenerator(
   // Slice to sample scenes BEFORE the "already exists" filter
   const scenes = options?.sampleOnly ? allScenes.slice(0, SAMPLE_COUNT) : allScenes;
 
-  const characterAnchor = parseCharacterAnchor(promptsMd);
-  if (characterAnchor) {
-    emit(projectId, { type: 'log', message: '  🎭 캐릭터 앵커 적용 — 모든 씬에 일관된 인물 묘사 삽입' });
+  const characterEntries = parseCharacterEntries(promptsMd);
+  if (characterEntries.length > 0) {
+    emit(projectId, { type: 'log', message: `  🎭 캐릭터 앵커 적용 — ${characterEntries.length}개 캐릭터, 씬별 필요 인물만 주입` });
   }
 
   const project = loadProject(projectId);
@@ -282,10 +319,12 @@ export async function runImageGenerator(
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
 
-        const finalPrompt = characterAnchor
+        const relevantEntries = filterCharactersForScene(characterEntries, scene.prompt);
+        const sceneAnchor = relevantEntries.length > 0 ? buildAnchorString(relevantEntries) : null;
+        const finalPrompt = sceneAnchor
           ? isFastSdxl
-            ? `${scene.prompt}, ${compressAnchorForSdxl(characterAnchor)}`
-            : `${characterAnchor}\n\n${scene.prompt}`
+            ? `${scene.prompt}, ${compressAnchorForSdxl(sceneAnchor)}`
+            : `${sceneAnchor}\n\n${scene.prompt}`
           : scene.prompt;
         const loraUrl = options?.loraUrl;
         const loraScale = options?.loraScale ?? 0.8;
