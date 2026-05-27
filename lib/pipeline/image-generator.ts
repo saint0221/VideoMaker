@@ -331,6 +331,7 @@ export async function runImageGenerator(
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
+        const isFlux2 = model === 'fal-ai/flux-2';
 
         const relevantEntries = filterCharactersForScene(characterEntries, scene.prompt);
         const sceneAnchor = relevantEntries.length > 0 ? buildAnchorString(relevantEntries) : null;
@@ -346,13 +347,13 @@ export async function runImageGenerator(
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: isFastSdxl ? 7.5 : 5.0,
-          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : 35),
+          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : isFlux2 ? 28 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
 
-        if (loraUrl) {
+        if (loraUrl && !isFlux2) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
           emit(projectId, { type: 'log', message: `  🎨 LoRA 적용: scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
