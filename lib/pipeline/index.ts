@@ -279,7 +279,7 @@ export async function runPostScript(projectId: string) {
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
     // Stage 9: Show cost preview before image generation
-    const imageCostPreview = calcImageCost(projectId, promptsMd);
+    const imageCostPreview = calcImageCost(projectId, promptsMd, project.imageModel);
     updateStatus(projectId, 'waiting:cost-images', { costPreview: { stage: 'images', ...imageCostPreview } });
     emit(projectId, { type: 'status', status: 'waiting:cost-images' });
     emit(projectId, { type: 'cost', stage: 'image', ...imageCostPreview });
@@ -483,7 +483,7 @@ export async function resumePipeline(projectId: string) {
 
     // Stage 9: Wait at cost-images gate
     if (imageFiles.length === 0) {
-      const costPreview = calcImageCost(projectId, prompts!);
+      const costPreview = calcImageCost(projectId, prompts!, project.imageModel);
       updateStatus(projectId, 'waiting:cost-images', { error: undefined, costPreview: { stage: 'images', ...costPreview } });
       emit(projectId, { type: 'status', status: 'waiting:cost-images' });
       emit(projectId, { type: 'cost', stage: 'image', ...costPreview });

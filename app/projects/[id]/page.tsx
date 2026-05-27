@@ -876,16 +876,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>이미지 모델</span>
             {(
               [
-                { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', desc: 'LoRA 지원' },
-                { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
-                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
-              ] as Array<{ value: ImageModel; label: string; desc: string }>
+                { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', lora: true, price: 0.025 },
+                { value: 'fal-ai/flux/schnell', label: 'FLUX.1 schnell', lora: false, price: 0.003 },
+                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', lora: false, price: 0.003 },
+              ] as Array<{ value: ImageModel; label: string; lora: boolean; price: number }>
             ).map(opt => (
               <button
                 key={opt.value}
                 onClick={() => handleImageModelChange(opt.value)}
                 style={{
-                  padding: '4px 10px',
+                  padding: '6px 12px',
                   borderRadius: 6,
                   fontSize: 11,
                   border: imageModel === opt.value ? '1px solid var(--accent)' : '1px solid var(--border)',
@@ -893,9 +893,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   color: imageModel === opt.value ? 'var(--accent)' : 'var(--text-muted)',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
+                  textAlign: 'left',
+                  lineHeight: 1.4,
                 }}
               >
-                {opt.label} <span style={{ opacity: 0.7 }}>— {opt.desc}</span>
+                <div style={{ fontWeight: 500 }}>{opt.label}</div>
+                <div style={{ display: 'flex', gap: 5, marginTop: 2, fontSize: 10, opacity: 0.8 }}>
+                  <span style={{ color: opt.lora ? 'var(--success)' : 'inherit' }}>{opt.lora ? '✓ LoRA' : '✕ LoRA'}</span>
+                  <span>·</span>
+                  <span>${opt.price}/장</span>
+                </div>
               </button>
             ))}
           </div>
