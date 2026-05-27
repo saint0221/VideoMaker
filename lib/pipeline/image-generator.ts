@@ -257,7 +257,7 @@ export async function runImageGenerator(
       try {
         emit(projectId, { type: 'log', message: `  씬 ${scene.id} 이미지 생성 중…` });
 
-        const BASE_NEGATIVE = 'screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration';
+        const BASE_NEGATIVE = 'screen on back of device, impossible object orientation, anatomically incorrect structure, physically impossible configuration, character sheet, reference sheet, grid layout, collage, tiled pattern, pattern repeat, multiple variants, multiple views, multiple poses, turnaround sheet';
         const negativePrompt = scene.negativePrompt
           ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
           : BASE_NEGATIVE;
