@@ -31,7 +31,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   (async () => {
     try {
-      await runSceneDesigner(id, project.topic, scriptMd, briefMd);
+      await runSceneDesigner(id, project.topic, scriptMd, briefMd, project.loraTriggerWord, project.imageModel);
       updateStatus(id, 'completed');
       emit(id, { type: 'status', status: 'completed' });
       emit(id, { type: 'log', message: '✅ 씬 설계 재생성 완료. 자막 패치 후 CapCut을 재생성하세요.' });

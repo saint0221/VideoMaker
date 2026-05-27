@@ -267,7 +267,7 @@ export async function runPostScript(projectId: string) {
     // Stage 7: Scene Designer
     updateStatus(projectId, 'running:scene');
     emit(projectId, { type: 'status', status: 'running:scene' });
-    const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd, project.loraTriggerWord);
+    const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd, project.loraTriggerWord, project.imageModel);
     updateStatus(projectId, 'done:scene');
     emit(projectId, { type: 'status', status: 'done:scene' });
 
