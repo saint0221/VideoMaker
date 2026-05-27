@@ -267,14 +267,14 @@ export async function runPostScript(projectId: string) {
     // Stage 7: Scene Designer
     updateStatus(projectId, 'running:scene');
     emit(projectId, { type: 'status', status: 'running:scene' });
-    const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd);
+    const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd, project.loraTriggerWord);
     updateStatus(projectId, 'done:scene');
     emit(projectId, { type: 'status', status: 'done:scene' });
 
     // Stage 8: Image Prompter
     updateStatus(projectId, 'running:prompts');
     emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd);
+    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, undefined, project.loraTriggerWord);
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
@@ -476,7 +476,7 @@ export async function resumePipeline(projectId: string) {
     if (!prompts) {
       updateStatus(projectId, 'running:prompts', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:prompts' });
-      prompts = await runImagePrompter(projectId, topic, scene!, script!);
+      prompts = await runImagePrompter(projectId, topic, scene!, script!, undefined, project.loraTriggerWord);
       updateStatus(projectId, 'done:prompts');
       emit(projectId, { type: 'status', status: 'done:prompts' });
     }

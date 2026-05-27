@@ -143,7 +143,8 @@ export async function runSceneDesigner(
   projectId: string,
   topic: string,
   scriptMd: string,
-  briefMd: string
+  briefMd: string,
+  loraTriggerWord?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[7단계] 씬 설계 중...' });
 
@@ -159,11 +160,15 @@ export async function runSceneDesigner(
   const audioDurations = readSceneAudioDurations(projectId);
   const audioSection = audioDurations ? `\n\n${audioDurations}` : '';
 
+  const loraNote = loraTriggerWord?.trim()
+    ? `\n\n⚠️ LoRA 스타일 적용: 이 영상은 "${loraTriggerWord.trim()}" LoRA 스타일로 이미지를 생성합니다. 씬 설계 시 포토리얼리스틱/다큐멘터리 스타일 대신 "${loraTriggerWord.trim()}"에 맞는 시각 언어로 비주얼 컨셉과 이미지 프롬프트 힌트를 작성하세요. 전체 비주얼 컨셉의 스타일 방향도 이 LoRA 스타일을 기준으로 정의하세요.`
+    : '';
+
   const prompt = `${SYSTEM}
 
 ---
 
-토픽: "${topic}"${durationConstraint}
+토픽: "${topic}"${durationConstraint}${loraNote}
 
 ## 대본 (script-final.md)
 ${scriptMd}
