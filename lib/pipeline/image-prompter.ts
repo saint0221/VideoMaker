@@ -198,6 +198,23 @@ STYLE_ANCHOR 규칙:
 ## STYLE_ANCHOR
 {내용}`;
 
+function buildSdxlOverride(): string {
+  return `
+
+⚠️ SDXL 모델 전용 — 프롬프트 형식 변경 (최우선 지시):
+이 프로젝트는 SDXL 기반 모델로 이미지를 생성합니다. SDXL의 텍스트 인코더 한계(약 77토큰)로 인해 긴 프롬프트는 뒷부분이 잘립니다.
+
+기존 "250~350단어 상세 묘사" 지시를 무시하고 아래 규칙을 따르세요:
+1. **길이**: 영문 프롬프트 50~80단어로 제한
+2. **형식**: 문장 형식 금지 — 쉼표 구분 키워드 나열만 사용
+3. **우선순위**: 핵심 피사체 → 행동/상황 → 배경/설정 → 분위기 키워드 → 품질 태그
+4. **생략**: 카메라 기종·렌즈 스펙·긴 조명 묘사·감성 서술 생략
+5. **품질 태그** (고정 포함): "high quality, sharp focus, masterpiece, best quality, 4K resolution"
+
+예시 형식:
+[트리거워드], [핵심 피사체], [행동/포즈], [배경], [분위기], [스타일 키워드], high quality, sharp focus, masterpiece, best quality, 4K resolution`;
+}
+
 function buildLoraOverride(loraTriggerWord: string): string {
   return `
 
@@ -239,6 +256,7 @@ export async function runImagePrompter(
   scriptFinalMd: string,
   referenceImagePath?: string,
   loraTriggerWord?: string,
+  imageModel?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
@@ -284,8 +302,9 @@ ${sceneDesignMd}
 CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
 
   const loraOverride = loraTriggerWord?.trim() ? buildLoraOverride(loraTriggerWord.trim()) : '';
-  const effectiveAnchorSystem = ANCHOR_SYSTEM + loraOverride;
-  const effectiveSystem = SYSTEM + loraOverride;
+  const sdxlOverride = imageModel === 'fal-ai/fast-sdxl' ? buildSdxlOverride() : '';
+  const effectiveAnchorSystem = ANCHOR_SYSTEM + loraOverride + sdxlOverride;
+  const effectiveSystem = SYSTEM + loraOverride + sdxlOverride;
 
   emit(projectId, { type: 'log', message: '  🎨 캐릭터·스타일 앵커 생성 중...' });
   const anchorContent = await runClaude(
