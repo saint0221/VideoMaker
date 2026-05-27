@@ -114,6 +114,21 @@ function parseCharacterAnchor(promptsMd: string): string | null {
   return anchor && anchor !== 'N/A' ? anchor : null;
 }
 
+// SDXL 77-token CLIP limit: compress CHARACTER_ANCHOR to ~10 essential visual tokens.
+// Extracts short comma-delimited visual phrases, skips narrative/negative sentence openers.
+function compressAnchorForSdxl(anchor: string): string {
+  const skipPattern = /^(no named|all human|all figures|or shown|not individualized|primary|secondary)/i;
+  const phrases = anchor
+    .replace(/\([^)]+\)/g, '')
+    .split(/[,;—–]/)
+    .map(s => s.trim())
+    .filter(s => {
+      const words = s.split(/\s+/).filter(Boolean);
+      return words.length >= 1 && words.length <= 5 && !skipPattern.test(s);
+    });
+  return phrases.slice(0, 4).join(', ');
+}
+
 function parseImagePrompts(promptsMd: string): ParsedScene[] {
   const scenes: ParsedScene[] = [];
   // Support both "## SCENE 01" and "### SLOT 01-A" header formats
@@ -264,13 +279,14 @@ export async function runImageGenerator(
 
         const model = options?.imageModel ?? 'fal-ai/flux/dev';
         const endpoint = `https://fal.run/${model}`;
-
-        const finalPrompt = characterAnchor
-          ? `${characterAnchor}\n\n${scene.prompt}`
-          : scene.prompt;
-
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
+
+        const finalPrompt = characterAnchor
+          ? isFastSdxl
+            ? `${scene.prompt}, ${compressAnchorForSdxl(characterAnchor)}`
+            : `${characterAnchor}\n\n${scene.prompt}`
+          : scene.prompt;
         const loraUrl = options?.loraUrl;
         const loraScale = options?.loraScale ?? 0.8;
 
