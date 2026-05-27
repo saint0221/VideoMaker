@@ -327,11 +327,17 @@ export async function runImageGenerator(
           ? `${scene.negativePrompt}, ${BASE_NEGATIVE}`
           : BASE_NEGATIVE;
 
-        const model = options?.imageModel ?? 'fal-ai/flux/dev';
+        const loraUrl = options?.loraUrl;
+        const loraScale = options?.loraScale ?? 0.8;
+
+        // LoRA URL이 있으면 flux-lora 엔드포인트로 강제 전환 (flux/dev 등은 loras 파라미터 미지원)
+        const baseModel = options?.imageModel ?? 'fal-ai/flux/dev';
+        const model = loraUrl ? 'fal-ai/flux-lora' : baseModel;
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
         const isFlux2 = model === 'fal-ai/flux-2';
+        const isFluxLora = model === 'fal-ai/flux-lora';
 
         const relevantEntries = filterCharactersForScene(characterEntries, scene.prompt);
         const sceneAnchor = relevantEntries.length > 0 ? buildAnchorString(relevantEntries) : null;
@@ -340,22 +346,20 @@ export async function runImageGenerator(
             ? `${scene.prompt}, ${compressAnchorForSdxl(sceneAnchor)}`
             : `${sceneAnchor}\n\n${scene.prompt}`
           : scene.prompt;
-        const loraUrl = options?.loraUrl;
-        const loraScale = options?.loraScale ?? 0.8;
 
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : 5.0,
-          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : isFlux2 ? 28 : 35),
+          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : isFluxLora ? 3.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFlux2 || isFluxLora) ? 28 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
 
-        if (loraUrl && !isFlux2) {
+        if (isFluxLora && loraUrl) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
-          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용: scale=${loraScale.toFixed(1)} — ${loraUrl}` });
+          emit(projectId, { type: 'log', message: `  🎨 LoRA 적용 (flux-lora): scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
 
         const res = await fetch(endpoint, {
