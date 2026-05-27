@@ -108,7 +108,7 @@ interface ParsedScene {
 }
 
 function parseCharacterAnchor(promptsMd: string): string | null {
-  const match = promptsMd.match(/##\s*CHARACTER_ANCHOR\s*\n([\s\S]+?)(?=\n---|\n##\s+SCENE)/i);
+  const match = promptsMd.match(/##\s*CHARACTER_ANCHOR\s*\n([\s\S]+?)(?=\n---|\n##\s+)/i);
   if (!match) return null;
   const anchor = match[1].trim();
   return anchor && anchor !== 'N/A' ? anchor : null;
