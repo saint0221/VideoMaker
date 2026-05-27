@@ -272,7 +272,7 @@ export async function runImageGenerator(
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
         const loraUrl = options?.loraUrl;
-        const loraScale = options?.loraScale ?? 1.0;
+        const loraScale = options?.loraScale ?? 0.8;
 
         const body: Record<string, unknown> = {
           prompt: finalPrompt,
