@@ -27,11 +27,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     updateStatus(id, 'running:scene');
     emit(id, { type: 'status', status: 'running:scene' });
 
-    const sceneDesignMd = await runSceneDesigner(id, project!.topic, scriptMd!, briefMd!);
+    const sceneDesignMd = await runSceneDesigner(id, project!.topic, scriptMd!, briefMd!, project!.loraTriggerWord);
 
     updateStatus(id, 'running:prompts');
     emit(id, { type: 'status', status: 'running:prompts' });
-    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!);
+    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!, undefined, project!.loraTriggerWord);
 
     updateStatus(id, 'waiting:images');
     emit(id, { type: 'status', status: 'waiting:images' });
