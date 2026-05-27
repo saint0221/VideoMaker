@@ -270,6 +270,7 @@ export async function runImageGenerator(
           : scene.prompt;
 
         const isSchnell = model === 'fal-ai/flux/schnell';
+        const isFastSdxl = model === 'fal-ai/fast-sdxl';
         const loraUrl = options?.loraUrl;
         const loraScale = options?.loraScale ?? 1.0;
 
@@ -277,8 +278,8 @@ export async function runImageGenerator(
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: 5.0,
-          num_inference_steps: isSchnell ? 4 : 35,
+          guidance_scale: isFastSdxl ? 7.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
