@@ -355,7 +355,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [regeneratingConcepts, setRegeneratingConcepts] = useState(false);
   const [regeneratingPrompts, setRegeneratingPrompts] = useState(false);
   const [confirmingImages, setConfirmingImages] = useState(false);
-  const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux/dev');
+  const [imageModel, setImageModel] = useState<ImageModel>('fal-ai/flux-lora');
   const [loraUrl, setLoraUrl] = useState('');
   const [loraScale, setLoraScale] = useState(1.0);
   const [loraTriggerWord, setLoraTriggerWord] = useState('');
@@ -876,7 +876,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>이미지 모델</span>
             {(
               [
-                { value: 'fal-ai/flux/dev', label: 'FLUX.1 [dev]', desc: '고품질' },
+                { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', desc: 'LoRA 지원' },
                 { value: 'fal-ai/flux/schnell', label: 'FLUX.1 [schnell]', desc: '속도 우선' },
                 { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', desc: '경량' },
               ] as Array<{ value: ImageModel; label: string; desc: string }>
@@ -899,7 +899,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/fast-sdxl') && (
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
               <input
@@ -928,7 +928,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
           )}
-          {(imageModel === 'fal-ai/flux/dev' || imageModel === 'fal-ai/fast-sdxl') && loraUrl && (
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl') && loraUrl && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
               <button

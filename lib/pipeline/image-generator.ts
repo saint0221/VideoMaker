@@ -331,7 +331,7 @@ export async function runImageGenerator(
         const loraScale = options?.loraScale ?? 0.8;
 
         // LoRA URL이 있으면 flux-lora 엔드포인트로 강제 전환 (flux/dev 등은 loras 파라미터 미지원)
-        const baseModel = options?.imageModel ?? 'fal-ai/flux/dev';
+        const baseModel = options?.imageModel ?? 'fal-ai/flux-lora';
         const model = loraUrl ? 'fal-ai/flux-lora' : baseModel;
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
