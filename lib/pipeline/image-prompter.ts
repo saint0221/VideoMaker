@@ -215,18 +215,29 @@ function buildSdxlOverride(): string {
 [트리거워드], [핵심 피사체], [행동/포즈], [배경], [분위기], [스타일 키워드], high quality, sharp focus, masterpiece, best quality, 4K resolution`;
 }
 
-function buildLoraOverride(loraTriggerWord: string): string {
+function buildLoraOverride(loraTriggerWord: string, loraStyleDesc?: string): string {
+  const triggerLine = loraTriggerWord
+    ? `1. **모든 프롬프트 첫 부분에 트리거 워드 포함**: "${loraTriggerWord}" 를 각 프롬프트 맨 앞에 삽입\n`
+    : '';
+  const styleHint = loraStyleDesc
+    ? `\n📌 LoRA 스타일 설명 (사용자 제공): "${loraStyleDesc}"\n→ 위 설명을 바탕으로 STYLE_ANCHOR와 각 씬 프롬프트의 시각 언어를 이 스타일에 맞게 조정하세요.\n`
+    : '';
+  const styleLabel = loraTriggerWord
+    ? `"${loraTriggerWord}" LoRA 스타일`
+    : loraStyleDesc
+    ? `커스텀 LoRA 스타일`
+    : `커스텀 LoRA`;
+
   return `
 
 ⚠️ LoRA 스타일 적용 (최우선 지시):
-이 프로젝트는 "${loraTriggerWord}" LoRA 스타일로 이미지를 생성합니다.
+이 프로젝트는 ${styleLabel}로 이미지를 생성합니다.${styleHint}
 아래 지시를 반드시 준수하세요:
-1. **모든 프롬프트 첫 부분에 트리거 워드 포함**: "${loraTriggerWord}" 를 각 프롬프트 맨 앞에 삽입
-2. **포토리얼리스틱 카메라 스펙 사용 금지**: Sony A7R IV, Canon EOS R5, 35mm lens 등 실제 카메라 명세 불포함
+${triggerLine}2. **포토리얼리스틱 카메라 스펙 사용 금지**: Sony A7R IV, Canon EOS R5, 35mm lens 등 실제 카메라 명세 불포함
 3. **포토리얼리스틱 화질 부스터 사용 금지**: "photorealistic, hyperrealistic, RAW photo" 태그 불포함
-4. **LoRA 스타일에 맞는 시각 언어 사용**: 트리거 워드("${loraTriggerWord}")가 암시하는 아트 스타일로 씬 내용을 재해석
+4. **LoRA 스타일에 맞는 시각 언어 사용**: ${loraStyleDesc ? `사용자가 제공한 스타일 설명("${loraStyleDesc}")` : `트리거 워드("${loraTriggerWord}")가 암시하는 아트 스타일`}로 씬 내용을 재해석
 5. **LoRA 스타일에 맞는 품질 태그 사용**: "high quality, sharp focus, masterpiece, best quality" 등 스타일 중립적 품질 태그 적용
-6. **STYLE_ANCHOR**: 포토리얼리스틱 시네마틱 스타일 대신 "${loraTriggerWord}" 스타일에 맞는 색감·분위기를 정의하고, 모든 씬에 일관된 LoRA 스타일 적용`;
+6. **STYLE_ANCHOR**: 포토리얼리스틱 시네마틱 스타일 대신 ${styleLabel}에 맞는 색감·분위기를 정의하고, 모든 씬에 일관된 LoRA 스타일 적용`;
 }
 
 function parseSceneSections(md: string): Array<{ id: string; content: string }> {
@@ -257,6 +268,7 @@ export async function runImagePrompter(
   referenceImagePath?: string,
   loraTriggerWord?: string,
   imageModel?: string,
+  loraStyleDesc?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
@@ -301,7 +313,8 @@ ${sceneDesignMd}
 
 CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
 
-  const loraOverride = loraTriggerWord?.trim() ? buildLoraOverride(loraTriggerWord.trim()) : '';
+  const hasLora = !!(loraTriggerWord?.trim() || loraStyleDesc?.trim());
+  const loraOverride = hasLora ? buildLoraOverride(loraTriggerWord?.trim() ?? '', loraStyleDesc?.trim()) : '';
   const sdxlOverride = imageModel === 'fal-ai/fast-sdxl' ? buildSdxlOverride() : '';
   const effectiveAnchorSystem = ANCHOR_SYSTEM + loraOverride + sdxlOverride;
   const effectiveSystem = SYSTEM + loraOverride + sdxlOverride;

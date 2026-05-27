@@ -31,7 +31,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     updateStatus(id, 'running:prompts');
     emit(id, { type: 'status', status: 'running:prompts' });
-    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!, undefined, project!.loraTriggerWord);
+    await runImagePrompter(id, project!.topic, sceneDesignMd, scriptMd!, undefined, project!.loraTriggerWord, undefined, project!.loraStyleDesc);
 
     updateStatus(id, 'waiting:images');
     emit(id, { type: 'status', status: 'waiting:images' });
