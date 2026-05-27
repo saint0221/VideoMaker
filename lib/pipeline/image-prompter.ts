@@ -212,7 +212,11 @@ function buildSdxlOverride(): string {
 5. **품질 태그** (고정 포함): "high quality, sharp focus, masterpiece, best quality, 4K resolution"
 
 예시 형식:
-[트리거워드], [핵심 피사체], [행동/포즈], [배경], [분위기], [스타일 키워드], high quality, sharp focus, masterpiece, best quality, 4K resolution`;
+[트리거워드], [핵심 피사체], [행동/포즈], [배경], [분위기], [스타일 키워드], high quality, sharp focus, masterpiece, best quality, 4K resolution
+
+6. **네거티브 프롬프트** (SDXL 전용 형식):
+기존 긴 설명형 네거티브 대신 아래 권장 태그를 기본으로 사용하고, 씬 특성에 맞는 태그를 추가하세요:
+worst quality, low quality, deformed, bad anatomy, blurry, mutated hands, extra limbs, text, watermark`;
 }
 
 function buildLoraOverride(loraTriggerWord: string, loraStyleDesc?: string): string {
