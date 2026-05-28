@@ -879,6 +879,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', lora: true, price: 0.035 },
                 { value: 'fal-ai/flux/schnell', label: 'FLUX.1 schnell', lora: false, price: 0.003 },
                 { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', lora: true, price: 0.0025 },
+                { value: 'fal-ai/flux-2/lora', label: 'FLUX.2 LoRA', lora: true, price: 0.042 },
               ] as Array<{ value: ImageModel; label: string; lora: boolean; price: number }>
             ).map(opt => (
               <button
@@ -906,7 +907,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </button>
             ))}
           </div>
-          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl') && (
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl' || imageModel === 'fal-ai/flux-2/lora') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>LoRA</span>
               <input
@@ -935,7 +936,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               )}
             </div>
           )}
-          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl') && loraUrl && (
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl' || imageModel === 'fal-ai/flux-2/lora') && loraUrl && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 520, margin: '0 auto 8px' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>스케일</span>
               <button
