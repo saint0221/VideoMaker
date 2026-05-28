@@ -36,7 +36,7 @@ export type PipelineStatus =
   | 'completed'
   | 'error';
 
-export type ImageModel = 'fal-ai/flux/schnell' | 'fal-ai/fast-sdxl' | 'fal-ai/flux-lora' | 'fal-ai/flux-2/lora';
+export type ImageModel = 'fal-ai/flux/schnell' | 'fal-ai/fast-sdxl' | 'fal-ai/flux-lora' | 'fal-ai/flux-2/lora' | 'fal-ai/flux/dev' | 'fal-ai/flux-2';
 
 export interface Concept {
   index: number;

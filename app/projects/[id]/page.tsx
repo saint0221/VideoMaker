@@ -880,6 +880,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 { value: 'fal-ai/flux/schnell', label: 'FLUX.1 schnell', lora: false, price: 0.003 },
                 { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', lora: true, price: 0.0025 },
                 { value: 'fal-ai/flux-2/lora', label: 'FLUX.2 LoRA', lora: true, price: 0.021 },
+                { value: 'fal-ai/flux/dev', label: 'FLUX.1 dev', lora: false, price: 0.025 },
+                { value: 'fal-ai/flux-2', label: 'FLUX.2', lora: false, price: 0.012 },
               ] as Array<{ value: ImageModel; label: string; lora: boolean; price: number }>
             ).map(opt => (
               <button

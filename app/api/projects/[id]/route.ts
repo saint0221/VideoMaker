@@ -20,7 +20,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({ deleted: true });
 }
 
-const VALID_IMAGE_MODELS: ImageModel[] = ['fal-ai/flux-lora', 'fal-ai/flux/schnell', 'fal-ai/fast-sdxl', 'fal-ai/flux-2/lora'];
+const VALID_IMAGE_MODELS: ImageModel[] = ['fal-ai/flux-lora', 'fal-ai/flux/schnell', 'fal-ai/fast-sdxl', 'fal-ai/flux-2/lora', 'fal-ai/flux/dev', 'fal-ai/flux-2'];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
