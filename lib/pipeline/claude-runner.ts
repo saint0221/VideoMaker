@@ -19,7 +19,7 @@ export const MODEL = {
   HAIKU: 'claude-haiku-4-5-20251001',
 } as const;
 
-async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, projectId?: string, maxTokens?: number): Promise<string> {
+async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, projectId?: string, maxTokens?: number, systemPrompt?: string, cachedPrefix?: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY가 설정되지 않았습니다.');
 
@@ -29,11 +29,21 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const systemParam = systemPrompt
+      ? [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }]
+      : undefined;
+    const userContent = cachedPrefix
+      ? [
+          { type: 'text' as const, text: cachedPrefix, cache_control: { type: 'ephemeral' as const } },
+          { type: 'text' as const, text: prompt },
+        ]
+      : prompt;
     const stream = client.messages.stream(
       {
         model,
         max_tokens: maxTokens ?? (model === MODEL.OPUS ? 32000 : 16000),
-        messages: [{ role: 'user', content: prompt }],
+        ...(systemParam ? { system: systemParam } : {}),
+        messages: [{ role: 'user', content: userContent }],
       },
       { signal: controller.signal }
     );
@@ -64,12 +74,12 @@ async function runClaudeSDK(prompt: string, timeoutMs: number, model: string, pr
   }
 }
 
-async function runCLI(prompt: string, timeoutMs: number, model: string, projectId?: string): Promise<string> {
+async function runCLI(prompt: string, timeoutMs: number, model: string, projectId?: string, systemPrompt?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', ''], {
+    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', systemPrompt ?? ''], {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -133,14 +143,15 @@ async function runCLI(prompt: string, timeoutMs: number, model: string, projectI
 
 export async function runClaude(
   prompt: string,
-  options?: { timeoutMs?: number; model?: string; projectId?: string; maxTokens?: number }
+  options?: { timeoutMs?: number; model?: string; projectId?: string; maxTokens?: number; systemPrompt?: string; cachedPrefix?: string }
 ): Promise<string> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS, projectId, maxTokens } = options ?? {};
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, model = MODEL.OPUS, projectId, maxTokens, systemPrompt, cachedPrefix } = options ?? {};
 
   if (process.env.ANTHROPIC_API_KEY) {
-    return runClaudeSDK(prompt, timeoutMs, model, projectId, maxTokens);
+    return runClaudeSDK(prompt, timeoutMs, model, projectId, maxTokens, systemPrompt, cachedPrefix);
   }
-  return runCLI(prompt, timeoutMs, model, projectId);
+  const cliPrompt = cachedPrefix ? `${cachedPrefix}\n\n${prompt}` : prompt;
+  return runCLI(cliPrompt, timeoutMs, model, projectId, systemPrompt);
 }
 
 async function runCLIWithImage(imagePath: string, textPrompt: string, timeoutMs: number, model: string): Promise<string | null> {
