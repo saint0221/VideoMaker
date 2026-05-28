@@ -8,7 +8,6 @@ export const MODEL_PRICE: Record<ImageModel, number> = {
   'fal-ai/flux-lora': 0.035,
   'fal-ai/flux/schnell': 0.003,
   'fal-ai/fast-sdxl': 0.0025,
-  'fal-ai/flux-2': 0.025,
   'fal-ai/flux-2/lora': 0.042,
 };
 
@@ -363,7 +362,6 @@ export async function runImageGenerator(
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
-        const isFlux2 = model === 'fal-ai/flux-2';
         const isFlux2Lora = model === 'fal-ai/flux-2/lora';
         const isFluxLora = model === 'fal-ai/flux-lora';
 
@@ -379,8 +377,8 @@ export async function runImageGenerator(
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : (isFluxLora || isFlux2Lora) ? 3.5 : 5.0,
-          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFlux2 || isFluxLora || isFlux2Lora) ? 28 : 35),
+          guidance_scale: isFastSdxl ? 7.5 : (isFluxLora || isFlux2Lora) ? 3.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFluxLora || isFlux2Lora) ? 28 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
