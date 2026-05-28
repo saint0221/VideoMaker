@@ -274,7 +274,7 @@ export async function runPostScript(projectId: string) {
     // Stage 8: Image Prompter
     updateStatus(projectId, 'running:prompts');
     emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc);
+    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc, project.aspectRatio);
     updateStatus(projectId, 'done:prompts');
     emit(projectId, { type: 'status', status: 'done:prompts' });
 
@@ -476,7 +476,7 @@ export async function resumePipeline(projectId: string) {
     if (!prompts) {
       updateStatus(projectId, 'running:prompts', { error: undefined });
       emit(projectId, { type: 'status', status: 'running:prompts' });
-      prompts = await runImagePrompter(projectId, topic, scene!, script!, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc);
+      prompts = await runImagePrompter(projectId, topic, scene!, script!, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc, project.aspectRatio);
       updateStatus(projectId, 'done:prompts');
       emit(projectId, { type: 'status', status: 'done:prompts' });
     }
