@@ -244,6 +244,26 @@ ${triggerLine}2. **포토리얼리스틱 카메라 스펙 사용 금지**: Sony 
 6. **STYLE_ANCHOR**: 포토리얼리스틱 시네마틱 스타일 대신 ${styleLabel}에 맞는 색감·분위기를 정의하고, 모든 씬에 일관된 LoRA 스타일 적용`;
 }
 
+const CONCURRENCY = 5;
+
+function createLimiter(concurrency: number) {
+  let active = 0;
+  const queue: Array<() => void> = [];
+  return function limit<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const run = () => {
+        active++;
+        fn().then(resolve, reject).finally(() => {
+          active--;
+          if (queue.length > 0) queue.shift()!();
+        });
+      };
+      if (active < concurrency) run();
+      else queue.push(run);
+    });
+  };
+}
+
 function parseSceneSections(md: string): Array<{ id: string; content: string }> {
   const sections: Array<{ id: string; content: string }> = [];
   const parts = md.split(/(?=^## SCENE \d+)/m);
@@ -334,43 +354,78 @@ CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
   }
   emit(projectId, { type: 'log', message: `  ✅ 앵커 생성 완료 — 씬 ${sceneSections.length}개 병렬 생성 시작` });
 
-  // Step 2: parallel scene calls
-  const sceneResults = await Promise.all(
-    sceneSections.map(async (scene) => {
-      emit(projectId, { type: 'log', message: `  🖼 SCENE ${scene.id} 프롬프트 생성 중...` });
+  // Step 2: parallel scene calls with concurrency limit, ID validation, and retry
+  const limit = createLimiter(CONCURRENCY);
 
-      const result = await runClaude(
-        `${effectiveSystem}
-
-⚠️ 이번 호출에서는 아래 지정된 씬 하나만 처리합니다.
-- CHARACTER_ANCHOR, STYLE_ANCHOR, 파일 제목 줄(# 이미지 생성 프롬프트: ...) 출력 금지
-- 첫 줄은 반드시 "## SCENE ${scene.id}" 또는 "## SCENE ${scene.id}-A"로 시작
-- 다른 씬 번호는 출력하지 마세요
-
----
-
-토픽: "${topic}"${durationConstraint}
+  const sceneCachedPrefix = `토픽: "${topic}"${durationConstraint}
 ${referenceSection}
 ${anchorContent.trim()}
 
 ## 대본 (script-final.md)
-${scriptFinalMd}
+${scriptFinalMd}`;
+
+  async function generateScene(scene: { id: string; content: string }): Promise<{ id: string; content: string }> {
+    emit(projectId, { type: 'log', message: `  🖼 SCENE ${scene.id} 프롬프트 생성 중...` });
+
+    const scenePrompt = `⚠️ 이번 호출에서는 아래 지정된 씬 하나만 처리합니다.
+- CHARACTER_ANCHOR, STYLE_ANCHOR, 파일 제목 줄(# 이미지 생성 프롬프트: ...) 출력 금지
+- 첫 줄은 반드시 "## SCENE ${scene.id}" 또는 "## SCENE ${scene.id}-A"로 시작
+- 다른 씬 번호는 출력하지 마세요
 
 ## 처리할 씬 (scene-design.md 중 SCENE ${scene.id}만):
 ${scene.content}
 
-이 씬의 이미지 프롬프트 슬롯만 출력하세요.`,
-        { model: MODEL.SONNET, projectId, timeoutMs: 8 * 60 * 1000 },
+이 씬의 이미지 프롬프트 슬롯만 출력하세요.`;
+
+    const result = await runClaude(scenePrompt, {
+      model: MODEL.SONNET,
+      projectId,
+      timeoutMs: 8 * 60 * 1000,
+      systemPrompt: effectiveSystem,
+      cachedPrefix: sceneCachedPrefix,
+    });
+
+    const firstSceneMatch = result?.match(/##\s+SCENE\s+(\d+)/i);
+    if (!firstSceneMatch || parseInt(firstSceneMatch[1], 10) !== parseInt(scene.id, 10)) {
+      throw new Error(
+        `SCENE ${scene.id} 잘못된 씬 번호 반환: ${firstSceneMatch?.[1] ?? '없음'}`,
       );
+    }
 
-      if (!result || !/##\s+SCENE/i.test(result)) {
-        throw new Error(`SCENE ${scene.id} 프롬프트 생성 실패 또는 내용 누락`);
-      }
+    emit(projectId, { type: 'log', message: `  ✅ SCENE ${scene.id} 완료` });
+    return { id: scene.id, content: result };
+  }
 
-      emit(projectId, { type: 'log', message: `  ✅ SCENE ${scene.id} 완료` });
-      return { id: scene.id, content: result };
-    }),
+  const initialResults = await Promise.allSettled(
+    sceneSections.map((scene) => limit(() => generateScene(scene))),
   );
+
+  const sceneResults: Array<{ id: string; content: string }> = [];
+  const retryScenes: Array<{ id: string; content: string }> = [];
+
+  for (let i = 0; i < initialResults.length; i++) {
+    const r = initialResults[i];
+    if (r.status === 'fulfilled') {
+      sceneResults.push(r.value);
+    } else {
+      emit(projectId, { type: 'log', message: `  ⚠️ SCENE ${sceneSections[i].id} 실패 — 재시도 중...` });
+      retryScenes.push(sceneSections[i]);
+    }
+  }
+
+  if (retryScenes.length > 0) {
+    const retryResults = await Promise.allSettled(
+      retryScenes.map((scene) => limit(() => generateScene(scene))),
+    );
+    for (let i = 0; i < retryResults.length; i++) {
+      const r = retryResults[i];
+      if (r.status === 'fulfilled') {
+        sceneResults.push(r.value);
+      } else {
+        throw new Error(`SCENE ${retryScenes[i].id} 재시도 실패: ${r.reason}`);
+      }
+    }
+  }
 
   emit(projectId, { type: 'log', message: `  🔀 ${sceneResults.length}개 씬 병합 중...` });
 
