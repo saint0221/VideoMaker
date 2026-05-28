@@ -8,7 +8,7 @@ export const MODEL_PRICE: Record<ImageModel, number> = {
   'fal-ai/flux-lora': 0.035,
   'fal-ai/flux/schnell': 0.003,
   'fal-ai/fast-sdxl': 0.0025,
-  'fal-ai/flux-2/lora': 0.042,
+  'fal-ai/flux-2/lora': 0.021,
 };
 
 interface FalImageResult {
