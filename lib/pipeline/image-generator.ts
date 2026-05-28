@@ -9,6 +9,7 @@ export const MODEL_PRICE: Record<ImageModel, number> = {
   'fal-ai/flux/schnell': 0.003,
   'fal-ai/fast-sdxl': 0.0025,
   'fal-ai/flux-2': 0.025,
+  'fal-ai/flux-2/lora': 0.042,
 };
 
 interface FalImageResult {
@@ -357,12 +358,13 @@ export async function runImageGenerator(
 
         // flux/schnell, flux-2는 loras 파라미터 미지원 → flux-lora로 강제 전환
         const baseModel = options?.imageModel ?? 'fal-ai/flux-lora';
-        const loraCompatible = baseModel === 'fal-ai/flux-lora' || baseModel === 'fal-ai/fast-sdxl';
+        const loraCompatible = baseModel === 'fal-ai/flux-lora' || baseModel === 'fal-ai/fast-sdxl' || baseModel === 'fal-ai/flux-2/lora';
         const model = loraUrl && !loraCompatible ? 'fal-ai/flux-lora' : baseModel;
         const endpoint = `https://fal.run/${model}`;
         const isSchnell = model === 'fal-ai/flux/schnell';
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
         const isFlux2 = model === 'fal-ai/flux-2';
+        const isFlux2Lora = model === 'fal-ai/flux-2/lora';
         const isFluxLora = model === 'fal-ai/flux-lora';
 
         const relevantEntries = filterCharactersForScene(characterEntries, scene.prompt);
@@ -377,13 +379,13 @@ export async function runImageGenerator(
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : isFluxLora ? 3.5 : 5.0,
-          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFlux2 || isFluxLora) ? 28 : 35),
+          guidance_scale: isFastSdxl ? 7.5 : isFlux2 ? 2.5 : (isFluxLora || isFlux2Lora) ? 3.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFlux2 || isFluxLora || isFlux2Lora) ? 28 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
 
-        if ((isFluxLora || isFastSdxl) && loraUrl) {
+        if ((isFluxLora || isFastSdxl || isFlux2Lora) && loraUrl) {
           body.loras = [{ path: loraUrl, scale: loraScale }];
           emit(projectId, { type: 'log', message: `  🎨 LoRA 적용 (${model}): scale=${loraScale.toFixed(1)} — ${loraUrl}` });
         }
