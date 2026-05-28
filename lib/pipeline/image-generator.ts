@@ -36,7 +36,7 @@ interface TextComposite {
 }
 
 function parseTextComposite(block: string): TextComposite | undefined {
-  const contentMatch = block.match(/내용:\s*"([^"]+)"/);
+  const contentMatch = block.match(/내용:\s*(?:"([^"]+)"|([^\n"]+))/);
   if (!contentMatch) return undefined;
 
   const fontMatch = block.match(/폰트:\s*(\S+)/);
@@ -46,7 +46,7 @@ function parseTextComposite(block: string): TextComposite | undefined {
   const sizeMatch = block.match(/크기:\s*(\d+)px/);
 
   return {
-    content: contentMatch[1].replace(/\\n/g, '\n'),
+    content: (contentMatch[1] ?? contentMatch[2]).trim().replace(/\\n/g, '\n'),
     font: fontMatch?.[1] ?? 'sans-serif',
     x: posMatch ? parseFloat(posMatch[1]) : 0.5,
     y: posMatch ? parseFloat(posMatch[2]) : 0.85,
@@ -148,9 +148,27 @@ const CREATURE_TERMS = [
 // Excludes 'silhouette' (matches "brain silhouette") and uses word-boundary matching
 // to avoid substring false positives like "commanding" → "man", "demanding" → "man".
 const HUMAN_TERMS = [
+  // generic
   'character', 'figure', 'person', 'woman', 'man',
   'couple', 'pair', 'embrace', 'hug', 'standing', 'sitting',
-  'walking', 'people', 'someone',
+  'walking', 'people', 'someone', 'human', 'portrait', 'face', 'body',
+  // age / gender
+  'boy', 'girl', 'child', 'children', 'elder', 'elderly', 'youth', 'baby',
+  // royalty / nobility
+  'king', 'queen', 'emperor', 'empress', 'prince', 'princess',
+  'lord', 'noble', 'nobleman', 'noblewoman', 'aristocrat',
+  // military / official
+  'soldier', 'warrior', 'general', 'officer', 'guard', 'knight',
+  'official', 'minister', 'envoy', 'ambassador',
+  // historical / cultural roles
+  'scholar', 'monk', 'priest', 'shaman', 'philosopher',
+  'merchant', 'farmer', 'servant', 'slave', 'artisan',
+  'assassin', 'spy', 'rebel', 'prisoner',
+  // family / relationship
+  'father', 'mother', 'son', 'daughter', 'husband', 'wife',
+  'brother', 'sister', 'family',
+  // body-part cues that imply a person
+  'hands', 'eyes', 'gaze',
 ];
 const HUMAN_TERM_RE = new RegExp(`\\b(${HUMAN_TERMS.join('|')})\\b`);
 
@@ -158,7 +176,7 @@ function filterCharactersForScene(entries: CharacterEntry[], scenePrompt: string
   const promptLower = scenePrompt.toLowerCase();
   return entries.filter(entry => {
     const combined = `${entry.label} ${entry.description}`.toLowerCase();
-    const entryCreatureTerms = CREATURE_TERMS.filter(t => combined.includes(t));
+    const entryCreatureTerms = CREATURE_TERMS.filter(t => new RegExp(`\\b${t}\\b`).test(combined));
     if (entryCreatureTerms.length > 0) {
       return entryCreatureTerms.some(t => promptLower.includes(t));
     }

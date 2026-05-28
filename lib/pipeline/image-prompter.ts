@@ -5,7 +5,7 @@ import { runClaude, runClaudeWithImage, MODEL } from './claude-runner';
 import { extractTargetSeconds } from './utils';
 
 const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
-대본(script-final.md)과 씬 설계서(scene-design.md)를 함께 읽고, 두 문서의 내용과 컨셉이 일관되게 반영된 FAL Flux Dev API 최적화 이미지 프롬프트를 작성합니다.
+대본(script-final.md)과 씬 설계서(scene-design.md)를 함께 읽고, 두 문서의 내용과 컨셉이 일관되게 반영된 이미지 생성 프롬프트를 작성합니다.
 
 🎯 작업 순서:
 1. **대본 먼저 읽기**: 각 씬의 나레이션 내용, 감정 흐름, 이미지 힌트를 파악합니다.
@@ -58,7 +58,7 @@ const SYSTEM = `당신은 AI 이미지 생성 프롬프트 전문가입니다.
    - "oppressive silence", "ethereal dreamlike quality"
 
 ⚠️ CRITICAL — AI 이미지 모델의 한국어 텍스트 렌더링 불가:
-FAL Flux Dev(및 모든 AI 이미지 생성 모델)는 한국어, 중국어, 일본어 등 비라틴 문자를 정확하게 렌더링하지 못합니다.
+AI 이미지 생성 모델은 한국어, 중국어, 일본어 등 비라틴 문자를 정확하게 렌더링하지 못합니다.
 프롬프트에 한국어 문자열을 넣으면 완전히 다른 글자나 의미 없는 기호로 출력됩니다.
 씬 설계서에 특정 한국어 텍스트가 명시되어 있으면 반드시 아래 **텍스트 합성** 블록을 사용하고,
 프롬프트 자체에는 해당 텍스트를 절대 넣지 마세요. 대신 배경 비주얼만 묘사하세요.
@@ -244,6 +244,20 @@ ${triggerLine}2. **포토리얼리스틱 카메라 스펙 사용 금지**: Sony 
 6. **STYLE_ANCHOR**: 포토리얼리스틱 시네마틱 스타일 대신 ${styleLabel}에 맞는 색감·분위기를 정의하고, 모든 씬에 일관된 LoRA 스타일 적용`;
 }
 
+function buildAspectRatioOverride(): string {
+  return `
+
+⚠️ 가로 영상(16:9) 구도 — 최우선 지시 (기존 세로 포맷 지시 무시):
+이 프로젝트는 유튜브 일반 영상용 가로 포맷(16:9)입니다.
+- "horizontal 16:9 landscape format, widescreen framing" 포함
+- "vertical 9:16 portrait format", "mobile-first framing" 태그 사용 금지
+- 모든 씬 네거티브 프롬프트에서 "horizontal composition, landscape format, wide angle crop" 제거
+- 세로 구도(tall narrow, portrait frame, centered vertically) 사용 금지
+- 인물이 있는 씬: "full body or upper body, centered horizontally in widescreen"
+- 배경 씬: "wide establishing shot, horizontal panoramic composition"
+- establishing shot: "wide landscape establishing shot, horizontal cinematic framing"`;
+}
+
 const CONCURRENCY = 5;
 
 function createLimiter(concurrency: number) {
@@ -293,6 +307,7 @@ export async function runImagePrompter(
   loraTriggerWord?: string,
   imageModel?: string,
   loraStyleDesc?: string,
+  aspectRatio?: string,
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[8단계] 이미지 프롬프트 생성 중...' });
 
@@ -340,8 +355,9 @@ CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
   const hasLora = !!(loraTriggerWord?.trim() || loraStyleDesc?.trim());
   const loraOverride = hasLora ? buildLoraOverride(loraTriggerWord?.trim() ?? '', loraStyleDesc?.trim()) : '';
   const sdxlOverride = imageModel === 'fal-ai/fast-sdxl' ? buildSdxlOverride() : '';
-  const effectiveAnchorSystem = ANCHOR_SYSTEM + loraOverride + sdxlOverride;
-  const effectiveSystem = SYSTEM + loraOverride + sdxlOverride;
+  const aspectOverride = aspectRatio !== '9:16' ? buildAspectRatioOverride() : '';
+  const effectiveAnchorSystem = ANCHOR_SYSTEM + loraOverride + sdxlOverride + aspectOverride;
+  const effectiveSystem = SYSTEM + loraOverride + sdxlOverride + aspectOverride;
 
   emit(projectId, { type: 'log', message: '  🎨 캐릭터·스타일 앵커 생성 중...' });
   const anchorContent = await runClaude(
