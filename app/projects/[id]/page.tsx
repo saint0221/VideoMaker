@@ -876,9 +876,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>이미지 모델</span>
             {(
               [
-                { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', lora: true, price: 0.025 },
+                { value: 'fal-ai/flux-lora', label: 'FLUX.1 LoRA', lora: true, price: 0.035 },
                 { value: 'fal-ai/flux/schnell', label: 'FLUX.1 schnell', lora: false, price: 0.003 },
-                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', lora: true, price: 0.003 },
+                { value: 'fal-ai/fast-sdxl', label: 'fast-SDXL', lora: true, price: 0.0025 },
               ] as Array<{ value: ImageModel; label: string; lora: boolean; price: number }>
             ).map(opt => (
               <button
