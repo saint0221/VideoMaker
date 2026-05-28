@@ -9,6 +9,8 @@ export const MODEL_PRICE: Record<ImageModel, number> = {
   'fal-ai/flux/schnell': 0.003,
   'fal-ai/fast-sdxl': 0.0025,
   'fal-ai/flux-2/lora': 0.021,
+  'fal-ai/flux/dev': 0.025,
+  'fal-ai/flux-2': 0.012,
 };
 
 interface FalImageResult {
@@ -364,6 +366,8 @@ export async function runImageGenerator(
         const isFastSdxl = model === 'fal-ai/fast-sdxl';
         const isFlux2Lora = model === 'fal-ai/flux-2/lora';
         const isFluxLora = model === 'fal-ai/flux-lora';
+        const isFluxDev = model === 'fal-ai/flux/dev';
+        const isFlux2 = model === 'fal-ai/flux-2';
 
         const relevantEntries = filterCharactersForScene(characterEntries, scene.prompt);
         const sceneAnchor = relevantEntries.length > 0 ? buildAnchorString(relevantEntries) : null;
@@ -377,8 +381,8 @@ export async function runImageGenerator(
           prompt: finalPrompt,
           num_images: 1,
           negative_prompt: negativePrompt,
-          guidance_scale: isFastSdxl ? 7.5 : (isFluxLora || isFlux2Lora) ? 3.5 : 5.0,
-          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFluxLora || isFlux2Lora) ? 28 : 35),
+          guidance_scale: isFastSdxl ? 7.5 : (isFluxLora || isFlux2Lora || isFluxDev || isFlux2) ? 3.5 : 5.0,
+          num_inference_steps: isSchnell ? 4 : (isFastSdxl ? 50 : (isFluxLora || isFlux2Lora || isFluxDev || isFlux2) ? 28 : 35),
           enable_safety_checker: true,
           image_size: imageSize,
         };
