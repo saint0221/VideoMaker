@@ -5,7 +5,7 @@ import { uploadToS3, downloadFromS3, deleteProjectFromS3, s3Enabled } from './s3
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'projects');
 
-function slugify(topic: string): string {
+export function slugify(topic: string): string {
   return topic
     .trim()
     .replace(/[/\\:*?"<>|]/g, '-')
