@@ -29,13 +29,12 @@
 | 7 | `running:scene` → `done:scene` | 씬 설계 | `scene-design.md` |
 | 8 | `running:prompts` → `done:prompts` | 이미지 프롬프트 생성 | `image-prompts.md` |
 | 9a | `done:prompts` → `waiting:cost-images` | 이미지 생성 비용 미리보기 확인 대기 | — |
-| 9b | `waiting:cost-images` → `waiting:reference` | 레퍼런스 이미지 업로드 대기 | `references/` |
-| 9c | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
-| 9d | `done:images` → `waiting:cost-video` | 영상 생성 비용 미리보기 확인 대기 (미구현 — types.ts에 선언됨) | — |
+| 9b | `running:images` → `done:images` → `waiting:images` | 이미지 생성 (사용자 확인 필요) | `images/` |
+| 9c | `done:images` → `waiting:cost-video` | 영상 생성 비용 미리보기 확인 대기 (미구현 — types.ts에 선언됨) | — |
 | 10 | `running:video` → `done:video` | 영상 클립 생성 | `videos/` |
 | 11 | `running:capcut` → `completed` | 캡컷 프로젝트 생성 | `capcut-project/` |
 
-**사용자 개입 포인트**: `waiting:youtube-urls` (유튜브 채널 URL 입력 — 생략 가능), `waiting:concept` (컨셉 선택), `waiting:confirm` (80점 미만 재수정 후 대본 최종 승인 — 80점 이상·필수 수정 없으면 자동 확정), `waiting:cost-images` (이미지 생성 비용 미리보기 확인), `waiting:reference` (레퍼런스 이미지 업로드), `waiting:images` (이미지 확인)
+**사용자 개입 포인트**: `waiting:youtube-urls` (유튜브 채널 URL 입력 — 생략 가능), `waiting:concept` (컨셉 선택), `waiting:confirm` (80점 미만 재수정 후 대본 최종 승인 — 80점 이상·필수 수정 없으면 자동 확정), `waiting:cost-images` (이미지 생성 비용 미리보기 확인), `waiting:images` (이미지 확인)
 
 ## 핵심 파일 위치
 
@@ -146,7 +145,7 @@ KLING_API_KEY=           # 영상 생성 폴백
   - `continueFromImages` — 영상 → 캡컷 (confirm-images/route.ts에서 호출)
   - `resumePipeline` — 파일 존재 여부로 재개 지점 판단 후 적절한 함수로 분기 (run/route.ts 재시작 시 호출)
 - **에러 복구 패턴**: `project.lastStatus`에 에러 발생 직전 상태가 기록됨 — 복구 API/UI 로직은 이를 기반으로 단계 판단
-- **`start-images`**: `error` 상태 + `image-prompts.md` 존재 시 `waiting:reference`로 자동 복구 후 이미지 생성 시작 (409 반환 안 함)
+- **`start-images`**: `error` 상태 + `image-prompts.md` 존재 시 자동 복구 후 이미지 생성 시작 (409 반환 안 함)
 - **시간 힌트**: planner가 토픽에서 "1분"/"30초"/"2분" 키워드 감지 → 씬 수·예상 길이 자동 조정; scriptwriter는 narration을 brief.md 길이에 비례 생성 (1분=300자)
 - **`parseConcepts`**: `lib/project.ts`에 위치 (pipeline 폴더 아님)
 - **`done:strategy`**: `lib/types.ts`와 `page.tsx` UI에만 선언 — index.ts에서 실제로 set되지 않음 (strategy 후 바로 `waiting:concept`으로 전환)
