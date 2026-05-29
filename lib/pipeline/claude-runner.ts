@@ -1,10 +1,18 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import fs from 'fs';
 import Anthropic from '@anthropic-ai/sdk';
 import { emit } from '../events';
 import { addLlmCost } from '../project';
 
-const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/hongss/.local/bin/claude';
+function resolveClaudeBin(): string {
+  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
+  try {
+    return execSync('which claude', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'claude';
+  }
+}
+const CLAUDE_BIN = resolveClaudeBin();
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {

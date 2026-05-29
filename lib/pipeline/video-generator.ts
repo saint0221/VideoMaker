@@ -202,7 +202,7 @@ export async function runVideoGenerator(projectId: string): Promise<void> {
         emit(projectId, { type: 'log', message: `  ⏭️ 씬 ${sceneNum}-${suffix} 이미 완료 — 건너뜀` });
         continue;
       }
-      const imageFile = i < sceneImages.length ? sceneImages[i] : sceneImages[sceneImages.length - 1];
+      const imageFile = sceneImages[i];
       clips.push({ sceneNum, suffix, imageFile, videoFileName });
     }
   }

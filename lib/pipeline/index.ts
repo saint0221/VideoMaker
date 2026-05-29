@@ -257,26 +257,35 @@ export async function runPostScript(projectId: string) {
 
     const { topic } = project;
 
-    // Stage 6: TTS
+    // Stage 6 (TTS) and Stage 7 (Scene Designer) are independent — run in parallel.
+    // Stage 8 (Image Prompter) depends on Scene Designer output, so it follows in the scene branch.
     updateStatus(projectId, 'running:tts');
     emit(projectId, { type: 'status', status: 'running:tts' });
-    await runTTS(projectId, scriptMd);
-    updateStatus(projectId, 'done:tts');
-    emit(projectId, { type: 'status', status: 'done:tts' });
 
-    // Stage 7: Scene Designer
-    updateStatus(projectId, 'running:scene');
-    emit(projectId, { type: 'status', status: 'running:scene' });
-    const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd, project.loraTriggerWord, project.imageModel);
-    updateStatus(projectId, 'done:scene');
-    emit(projectId, { type: 'status', status: 'done:scene' });
+    const [, promptsMd] = await Promise.all([
+      // Branch A: TTS only
+      (async () => {
+        await runTTS(projectId, scriptMd);
+        updateStatus(projectId, 'done:tts');
+        emit(projectId, { type: 'status', status: 'done:tts' });
+      })(),
 
-    // Stage 8: Image Prompter
-    updateStatus(projectId, 'running:prompts');
-    emit(projectId, { type: 'status', status: 'running:prompts' });
-    const promptsMd = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc, project.aspectRatio);
-    updateStatus(projectId, 'done:prompts');
-    emit(projectId, { type: 'status', status: 'done:prompts' });
+      // Branch B: Scene Designer → Image Prompter
+      (async () => {
+        updateStatus(projectId, 'running:scene');
+        emit(projectId, { type: 'status', status: 'running:scene' });
+        const sceneDesignMd = await runSceneDesigner(projectId, topic, scriptMd, briefMd, project.loraTriggerWord, project.imageModel);
+        updateStatus(projectId, 'done:scene');
+        emit(projectId, { type: 'status', status: 'done:scene' });
+
+        updateStatus(projectId, 'running:prompts');
+        emit(projectId, { type: 'status', status: 'running:prompts' });
+        const md = await runImagePrompter(projectId, topic, sceneDesignMd, scriptMd, undefined, project.loraTriggerWord, project.imageModel, project.loraStyleDesc, project.aspectRatio);
+        updateStatus(projectId, 'done:prompts');
+        emit(projectId, { type: 'status', status: 'done:prompts' });
+        return md;
+      })(),
+    ]);
 
     // Stage 9: Show cost preview before image generation
     const imageCostPreview = calcImageCost(projectId, promptsMd, project.imageModel);

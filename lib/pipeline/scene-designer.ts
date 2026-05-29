@@ -170,21 +170,10 @@ export async function runSceneDesigner(
     ? `\n\n⚠️ LoRA 스타일 적용: 이 영상은 "${loraTriggerWord.trim()}" LoRA 스타일로 이미지를 생성합니다. 씬 설계 시 포토리얼리스틱/다큐멘터리 스타일 대신 "${loraTriggerWord.trim()}"에 맞는 시각 언어로 비주얼 컨셉과 이미지 프롬프트 힌트를 작성하세요. 전체 비주얼 컨셉의 스타일 방향도 이 LoRA 스타일을 기준으로 정의하세요.${sdxlConstraint}`
     : sdxlConstraint;
 
-  const prompt = `${SYSTEM}
+  const cachedPrefix = `토픽: "${topic}"${durationConstraint}${loraNote}\n\n## 대본 (script-final.md)\n${scriptMd}\n\n## 기획서 (brief.md)\n${briefMd}`;
+  const prompt = `${audioSection}${srtSection}\n아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
 
----
-
-토픽: "${topic}"${durationConstraint}${loraNote}
-
-## 대본 (script-final.md)
-${scriptMd}
-
-## 기획서 (brief.md)
-${briefMd}${audioSection}${srtSection}
-
-아래 형식에 따라 scene-design.md의 마크다운 내용만 출력하세요. 파일 저장이나 도구 사용 없이 텍스트만 출력합니다.`;
-
-  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const content = await runClaude(prompt, { model: MODEL.SONNET, projectId, systemPrompt: SYSTEM, cachedPrefix });
 
   if (!content) {
     throw new Error('씬 설계자가 scene-design.md 내용을 생성하지 못했습니다.');

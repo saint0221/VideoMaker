@@ -361,8 +361,8 @@ CHARACTER_ANCHOR와 STYLE_ANCHOR 두 블록만 출력하세요.`;
 
   emit(projectId, { type: 'log', message: '  🎨 캐릭터·스타일 앵커 생성 중...' });
   const anchorContent = await runClaude(
-    `${effectiveAnchorSystem}\n\n---\n\n${anchorInput}`,
-    { model: MODEL.SONNET, projectId, timeoutMs: 4 * 60 * 1000 },
+    anchorInput,
+    { model: MODEL.SONNET, projectId, timeoutMs: 4 * 60 * 1000, systemPrompt: effectiveAnchorSystem },
   );
 
   if (!anchorContent) {

@@ -96,7 +96,12 @@ ${'```'}
 - 필수 수정은 1-5개로 제한하고, 자동 수정이 바로 가능하도록 문장 단위 수정안을 제시할 것
 - 🔴 필수 수정은 반드시 위 출력 형식의 **[N]** 블록 구조로 작성할 것 — 자유 형식 불릿 금지. 원본 텍스트와 수정 텍스트는 반드시 백틱+따옴표(${'`'}"..."${'`'})로 감쌀 것
 - 권장 수정은 완성도 개선만 다루고, 필수 수정 기준에 해당하는 항목을 권장 수정으로 낮추지 말 것
-- 한국어로 작성`;
+- 한국어로 작성
+
+검수 결과 마크다운 본문이 끝난 뒤, 반드시 아래 JSON 코드블록을 마지막 줄로 출력하라:
+${'```'}json
+{"score": 점수정수, "verdict": "합격|조건부 합격|불합격"}
+${'```'}`;
 
 export async function runReviewer(
   projectId: string,
@@ -116,22 +121,11 @@ export async function runReviewer(
     ? '\n🌐 언어 설정: 이 대본은 **영어 나레이션**으로 의도적으로 제작됩니다. 영어 사용 자체는 감점 사유가 아닙니다. 모든 항목을 영어 나레이션 기준으로 평가하세요.\n'
     : '';
 
-  const prompt = `${SYSTEM}
-${languageNote}
+  const effectiveSystem = SYSTEM + languageNote;
+  const cachedPrefix = `토픽: "${topic}"\n\n## 기획서 (brief.md)\n${briefMd}${factCheckSection}`;
+  const prompt = `## 대본 (script-final.md)\n${scriptMd}\n\n위 형식에 맞게 검수 결과만 출력해주세요. 파일 저장은 하지 마세요.`;
 
----
-
-토픽: "${topic}"
-
-## 대본 (script-final.md)
-${scriptMd}
-
-## 기획서 (brief.md)
-${briefMd}
-${factCheckSection}
-위 형식에 맞게 검수 결과만 출력해주세요. 파일 저장은 하지 마세요.`;
-
-  const reviewContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const reviewContent = await runClaude(prompt, { model: MODEL.SONNET, projectId, systemPrompt: effectiveSystem, cachedPrefix });
 
   if (!reviewContent) {
     throw new Error('검수자가 script-review.md 내용을 생성하지 못했습니다.');

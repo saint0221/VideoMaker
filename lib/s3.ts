@@ -9,6 +9,11 @@ import {
 const BUCKET = process.env.S3_BUCKET;
 const REGION = process.env.AWS_REGION || 'ap-northeast-2';
 
+// S3 errors are non-fatal: the pipeline continues with local files only.
+function s3Warn(msg: string, err?: unknown): void {
+  console.error('[S3]', msg, err ?? '');
+}
+
 let _client: S3Client | null = null;
 
 function getClient(): S3Client {
@@ -36,7 +41,7 @@ export function uploadToS3(id: string, filename: string, body: Buffer | string):
     : 'application/octet-stream';
   getClient()
     .send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType }))
-    .catch((err) => console.error(`[S3] upload failed: ${key}`, err));
+    .catch((err) => s3Warn(`upload failed: ${key}`, err));
 }
 
 export async function downloadFromS3(id: string, filename: string): Promise<Buffer | null> {
@@ -51,7 +56,7 @@ export async function downloadFromS3(id: string, filename: string): Promise<Buff
     return Buffer.concat(chunks);
   } catch (err: unknown) {
     if ((err as { name?: string }).name === 'NoSuchKey') return null;
-    console.error(`[S3] download failed: ${key}`, err);
+    s3Warn(`download failed: ${key}`, err);
     return null;
   }
 }
@@ -77,7 +82,7 @@ export async function listProjectIdsFromS3(): Promise<string[]> {
       continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (continuationToken);
   } catch (err) {
-    console.error('[S3] listProjectIds failed', err);
+    s3Warn('listProjectIds failed', err);
   }
   return ids;
 }
@@ -96,12 +101,12 @@ export async function deleteProjectFromS3(id: string): Promise<void> {
         keys.map((k) =>
           getClient()
             .send(new DeleteObjectCommand({ Bucket: BUCKET!, Key: k }))
-            .catch((err) => console.error(`[S3] delete failed: ${k}`, err))
+            .catch((err) => s3Warn(`delete failed: ${k}`, err))
         )
       );
       continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (continuationToken);
   } catch (err) {
-    console.error(`[S3] list for delete failed: ${prefix}`, err);
+    s3Warn(`list for delete failed: ${prefix}`, err);
   }
 }
