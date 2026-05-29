@@ -16,13 +16,13 @@ const CLAUDE_BIN = resolveClaudeBin();
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 const PRICING: Record<string, { inputPerMTok: number; outputPerMTok: number }> = {
-  'claude-opus-4-7': { inputPerMTok: 15, outputPerMTok: 75 },
+  'claude-opus-4-8': { inputPerMTok: 15, outputPerMTok: 75 },
   'claude-sonnet-4-6': { inputPerMTok: 3, outputPerMTok: 15 },
   'claude-haiku-4-5-20251001': { inputPerMTok: 0.8, outputPerMTok: 4 },
 };
 
 export const MODEL = {
-  OPUS: 'claude-opus-4-7',
+  OPUS: 'claude-opus-4-8',
   SONNET: 'claude-sonnet-4-6',
   HAIKU: 'claude-haiku-4-5-20251001',
 } as const;
