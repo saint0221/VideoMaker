@@ -275,19 +275,59 @@ JSON 형식으로만 응답 (다른 텍스트 없이):
   return result;
 }
 
+const FONT_PATH = '/Applications/CapCut.app/Contents/Resources/Font/SystemFont/en.ttf';
+
 function makeTextContent(text: string): string {
   return JSON.stringify({
     styles: [{
       fill: { content: { solid: { color: [1, 1, 1] }, render_type: 'solid' } },
       range: [0, text.length],
       size: 10,
-      font: {
-        path: '/Applications/CapCut.app/Contents/Resources/Font/SystemFont/en.ttf',
-        id: '',
-      },
+      font: { path: FONT_PATH, id: '' },
     }],
     text,
   });
+}
+
+// Karaoke: full line visible in white, active word highlighted in yellow
+function makeKaraokeTextContent(fullLine: string, activeStart: number, activeEnd: number): string {
+  const styles: object[] = [];
+  const base = { size: 10, font: { path: FONT_PATH, id: '' } };
+  const white = { fill: { content: { solid: { color: [1, 1, 1] }, render_type: 'solid' } } };
+  const yellow = { fill: { content: { solid: { color: [1, 0.9, 0] }, render_type: 'solid' } } };
+
+  if (activeStart > 0)
+    styles.push({ ...base, ...white, range: [0, activeStart] });
+  styles.push({ ...base, ...yellow, range: [activeStart, activeEnd] });
+  if (activeEnd < fullLine.length)
+    styles.push({ ...base, ...white, range: [activeEnd, fullLine.length] });
+
+  return JSON.stringify({ styles, text: fullLine });
+}
+
+interface WordEntry {
+  text: string;
+  start: number;  // seconds
+  end: number;
+}
+
+// Group words into karaoke lines (same 4-word / 3s logic as TTS)
+function groupWordsIntoLines(words: WordEntry[]): Array<{ line: string; words: WordEntry[] }> {
+  const groups: Array<{ line: string; words: WordEntry[] }> = [];
+  let i = 0;
+  while (i < words.length) {
+    const segStart = words[i].start;
+    const group: WordEntry[] = [];
+    let j = i;
+    while (j < words.length && group.length < 4 && words[j].end - segStart < 3.0) {
+      group.push(words[j]);
+      j++;
+    }
+    if (j === i) j++;
+    groups.push({ line: group.map((w) => w.text).join(' '), words: group });
+    i = j;
+  }
+  return groups;
 }
 
 function makeVideoMaterial(id: string, filePath: string, duration: number, isPhoto = false, photoSize = { width: 1920, height: 1080 }): object {
@@ -853,6 +893,12 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
       sentenceSrtFile = sentenceSrtDest;
     }
 
+    // Bundle word-level timestamps JSON (for karaoke highlight)
+    const wordsJsonSrc = path.join(subsDir, `scene_${id}_words.json`);
+    if (fs.existsSync(wordsJsonSrc)) {
+      fs.copyFileSync(wordsJsonSrc, path.join(bundledSubsDir, `scene_${id}_words.json`));
+    }
+
     const videoPattern = new RegExp(`^scene_${id}(?:-[A-Za-z])?\\.mp4$`);
     // Bundle videos into capcut-project/videos/
     const sceneVideoFiles = fs.existsSync(videosDir)
@@ -1063,7 +1109,41 @@ export async function runCapcutEditor(projectId: string): Promise<void> {
     }
 
     // ---- Text (subtitle) segments ----
-    if (s.srtFile) {
+    const wordsJsonPath = s.srtFile
+      ? s.srtFile.replace(/\.srt$/, '_words.json').replace('/subtitles/', '/subtitles/')
+      : null;
+    const hasKaraoke = wordsJsonPath && fs.existsSync(wordsJsonPath);
+
+    if (hasKaraoke) {
+      // Karaoke mode: per-word highlight, full line visible
+      const allWords: WordEntry[] = JSON.parse(fs.readFileSync(wordsJsonPath!, 'utf-8'));
+      const lines = groupWordsIntoLines(allWords);
+
+      for (const { line, words: lineWords } of lines) {
+        for (let wi = 0; wi < lineWords.length; wi++) {
+          const word = lineWords[wi];
+          const nextStart = lineWords[wi + 1]?.start ?? lineWords[lineWords.length - 1].end;
+          const segStart = Math.round(word.start * 1_000_000);
+          const segEnd = Math.round((wi < lineWords.length - 1 ? nextStart : word.end) * 1_000_000);
+          const dur = Math.max(segEnd - segStart, 33_333);
+
+          const activeCharStart = line.indexOf(word.text);
+          const activeCharEnd = activeCharStart + word.text.length;
+
+          const textMaterialId = uuid();
+          const mat = makeTextMaterial(textMaterialId, line);
+          // Override content with karaoke-styled version
+          (mat as Record<string, unknown>).content = makeKaraokeTextContent(line, activeCharStart, activeCharEnd);
+          textMaterials.push(mat);
+          textSegments.push(makeTextSegment(
+            uuid(), textMaterialId,
+            sceneStart + segStart, dur,
+            TEXT_TRACK_IDX
+          ));
+        }
+      }
+    } else if (s.srtFile) {
+      // Fallback: plain subtitle segments
       const entries = parseSrt(fs.readFileSync(s.srtFile, 'utf-8'));
       for (const entry of entries) {
         const textMaterialId = uuid();
