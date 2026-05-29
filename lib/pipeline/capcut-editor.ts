@@ -16,10 +16,13 @@ function uuid(): string {
     .toUpperCase();
 }
 
+const FFPROBE = process.env.FFPROBE_BIN ?? 'ffprobe';
+const FFMPEG = process.env.FFMPEG_BIN ?? 'ffmpeg';
+
 function getFileDuration(filePath: string): number {
   try {
     const out = execSync(
-      `ffprobe -v error -show_entries format=duration -of csv=p=0 "${filePath}"`,
+      `"${FFPROBE}" -v error -show_entries format=duration -of csv=p=0 "${filePath}"`,
       { encoding: 'utf-8' }
     ).trim();
     return Math.round(parseFloat(out) * 1_000_000);
@@ -31,7 +34,7 @@ function getFileDuration(filePath: string): number {
 function getVideoSize(filePath: string): { width: number; height: number } {
   try {
     const out = execSync(
-      `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${filePath}"`,
+      `"${FFPROBE}" -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${filePath}"`,
       { encoding: 'utf-8' }
     ).trim();
     const [w, h] = out.split(',').map(Number);
@@ -44,8 +47,8 @@ function getVideoSize(filePath: string): { width: number; height: number } {
 function extractLastFrame(videoPath: string, outputPath: string): boolean {
   try {
     execSync(
-      `ffmpeg -y -sseof -0.1 -i "${videoPath}" -frames:v 1 -q:v 2 "${outputPath}" 2>/dev/null`,
-      { encoding: 'utf-8' }
+      `"${FFMPEG}" -y -sseof -0.1 -i "${videoPath}" -frames:v 1 -q:v 2 "${outputPath}"`,
+      { encoding: 'utf-8', stdio: 'pipe' }
     );
     return fs.existsSync(outputPath);
   } catch {

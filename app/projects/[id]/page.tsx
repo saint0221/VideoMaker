@@ -679,6 +679,29 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     return () => { esRef.current?.close(); };
   }, []);
 
+  // Poll project status every 5s when SSE is not active, so UI stays in sync
+  useEffect(() => {
+    if (sseActive) return;
+    const timer = setInterval(() => {
+      fetch(`/api/projects/${id}`)
+        .then(r => r.json())
+        .then((p: Project) => {
+          setProject(prev => {
+            if (!prev || prev.status === p.status) return prev;
+            // Status changed externally — reconnect SSE if now running/waiting
+            if (p.status.startsWith('running:') || p.status.startsWith('waiting:')) {
+              connectSSE();
+            }
+            return { ...prev, status: p.status, error: p.error, llmCostUsd: p.llmCostUsd ?? prev.llmCostUsd };
+          });
+          if (p.llmCostUsd) setLlmCostUsd(p.llmCostUsd);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sseActive, id]);
+
   useEffect(() => {
     if (!sseActive) return;
     const timer = setInterval(() => {
