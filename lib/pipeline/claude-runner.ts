@@ -1,16 +1,29 @@
 import { spawn, execSync } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 import { emit } from '../events';
 import { addLlmCost } from '../project';
 
 function resolveClaudeBin(): string {
-  if (process.env.CLAUDE_BIN) return process.env.CLAUDE_BIN;
-  try {
-    return execSync('which claude', { encoding: 'utf8' }).trim();
-  } catch {
-    return 'claude';
+  const bin = process.env.CLAUDE_BIN ?? (() => {
+    try { return execSync('which claude', { encoding: 'utf8' }).trim(); } catch { return 'claude'; }
+  })();
+
+  // On Windows, resolve .cmd wrappers to the actual .exe so we can spawn directly
+  // without going through cmd.exe (which has an 8191-char command line limit).
+  if (process.platform === 'win32' && bin.toLowerCase().endsWith('.cmd')) {
+    try {
+      const content = fs.readFileSync(bin, 'utf8');
+      const match = content.match(/"([^"]+\.exe)"/);
+      if (match) {
+        // %dp0% is the directory of the .cmd file — resolve it to an absolute path
+        const dp0 = path.dirname(bin) + path.sep;
+        return path.normalize(match[1].replace(/%dp0%/gi, dp0));
+      }
+    } catch { /* fall through */ }
   }
+  return bin;
 }
 const CLAUDE_BIN = resolveClaudeBin();
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -87,10 +100,14 @@ async function runCLI(prompt: string, timeoutMs: number, model: string, projectI
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', systemPrompt ?? ''], {
+    const args = ['--print', '--dangerously-skip-permissions', '--model', model];
+    if (systemPrompt) args.push('--system-prompt', systemPrompt);
+
+    // CLAUDE_BIN is resolved to the actual .exe on Windows (not the .cmd wrapper),
+    // so we spawn directly — no cmd.exe, no 8191-char command line limit.
+    const child = spawn(CLAUDE_BIN, args, {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: process.platform === 'win32',
     });
 
     let resolved = false;
@@ -184,10 +201,11 @@ async function runCLIWithImage(imagePath: string, textPrompt: string, timeoutMs:
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
 
-    const child = spawn(CLAUDE_BIN, [
-      '--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', '',
+    const imgArgs = [
+      '--print', '--dangerously-skip-permissions', '--model', model,
       '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
-    ], { env, stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32' });
+    ];
+    const child = spawn(CLAUDE_BIN, imgArgs, { env, stdio: ['pipe', 'pipe', 'pipe'] });
 
     let resolved = false;
 

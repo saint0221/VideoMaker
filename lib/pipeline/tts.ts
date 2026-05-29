@@ -4,23 +4,30 @@ import { loadSettings } from '../settings';
 
 function parseNarrations(scriptMd: string): Array<{ id: string; text: string }> {
   const scenes: Array<{ id: string; text: string }> = [];
-  // Support both ## [SCENE 01 - ...] and ## 씬 01 | ... formats
-  const blocks = scriptMd.split(/(?=##\s+(?:\[SCENE\s+\d+|씬\s+\d+))/i);
+  // Support: ## [SCENE 01], ## 씬 01, ## 🎬 씬 1 — ..., ## 씬 1 — ...
+  const blocks = scriptMd.split(/(?=##\s+(?:\[SCENE\s+\d+|[^\n]*씬\s+\d+))/i);
 
   for (const block of blocks) {
-    const idMatch = block.match(/##\s+(?:\[SCENE\s+(\d+)|씬\s+(\d+))/i);
+    const idMatch = block.match(/##\s+(?:\[SCENE\s+(\d+)|[^\n]*씬\s+(\d+))/i);
     if (!idMatch) continue;
     const num = idMatch[1] ?? idMatch[2];
     if (!num) continue;
     const sceneId = num.padStart(2, '0');
 
-    // \n+ handles optional blank line between **나레이션**: / **Narration**: and text
+    // Support: **나레이션**: / **Narration**: / **[나레이션]** / **[Narration]**
     const narrMatch = block.match(
-      /\*\*(?:나레이션|Narration)\*\*:[ \t]*\n+([\s\S]+?)(?=\n\s*\n\*\*|\n---|\n##|$)/i
+      /\*\*\[?(?:나레이션|Narration)\]?\*\*:?[ \t]*\n+([\s\S]+?)(?=\n\s*\n\*\*|\n---|\n##|$)/i
     );
     if (!narrMatch) continue;
 
-    let text = narrMatch[1].trim();
+    // Strip blockquote markers (>) and clean up
+    let text = narrMatch[1]
+      .split('\n')
+      .map(l => l.replace(/^>\s?/, '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
     // Remove surrounding quotes (Korean and ASCII)
     text = text.replace(/^[""„''"']+|[""„''"']+$/g, '').trim();
     // Skip "no narration" markers

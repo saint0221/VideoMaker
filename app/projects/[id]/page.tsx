@@ -70,7 +70,7 @@ const STAGES: { key: string; label: string; statuses: PipelineStatus[] }[] = [
   {
     key: 'video',
     label: '영상',
-    statuses: ['running:video', 'done:video'],
+    statuses: ['waiting:cost-video', 'running:video', 'done:video'],
   },
   {
     key: 'capcut',
@@ -709,6 +709,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const isWaitingCostImages = project.status === 'waiting:cost-images';
   const isWaitingImages = project.status === 'waiting:images';
   const isWaitingSampleImages = project.status === 'waiting:sample-images';
+  const isDoneTts = project.status === 'done:tts';
   const isWaitingCostVideo = project.status === 'waiting:cost-video';
   const isCompleted = project.status === 'completed';
   const isError = project.status === 'error';
@@ -1080,6 +1081,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             })}
             <div ref={logsEndRef} />
           </div>
+        </div>
+      )}
+
+      {/* done:tts — proceed to scene/image pipeline */}
+      {isDoneTts && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>TTS 완료</h3>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+            음성 파일이 생성됐습니다. 씬 설계 → 이미지 프롬프트 단계로 진행합니다.
+          </p>
+          <button className="btn btn-primary" onClick={handleStartTTS}>
+            ▶ 씬 설계 + 이미지 프롬프트 시작
+          </button>
         </div>
       )}
 

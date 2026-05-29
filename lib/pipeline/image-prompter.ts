@@ -280,9 +280,10 @@ function createLimiter(concurrency: number) {
 
 function parseSceneSections(md: string): Array<{ id: string; content: string }> {
   const sections: Array<{ id: string; content: string }> = [];
-  const parts = md.split(/(?=^## SCENE \d+)/m);
+  // Support both English (## SCENE N) and Korean (### 씬 N) formats
+  const parts = md.split(/(?=^#{2,3} (?:SCENE |씬 )\d+)/m);
   for (const part of parts) {
-    const match = part.match(/^## SCENE (\d+)/m);
+    const match = part.match(/^#{2,3} (?:SCENE |씬 )(\d+)/m);
     if (match) {
       sections.push({ id: match[1], content: part.trim() });
     }
