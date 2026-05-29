@@ -90,6 +90,7 @@ async function runCLI(prompt: string, timeoutMs: number, model: string, projectI
     const child = spawn(CLAUDE_BIN, ['--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', systemPrompt ?? ''], {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     });
 
     let resolved = false;
@@ -186,7 +187,7 @@ async function runCLIWithImage(imagePath: string, textPrompt: string, timeoutMs:
     const child = spawn(CLAUDE_BIN, [
       '--print', '--dangerously-skip-permissions', '--model', model, '--system-prompt', '',
       '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
-    ], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    ], { env, stdio: ['pipe', 'pipe', 'pipe'], shell: process.platform === 'win32' });
 
     let resolved = false;
 
