@@ -137,6 +137,27 @@ export function updateStatus(id: string, status: PipelineStatus, extra?: Partial
 }
 
 export function parseConcepts(strategyMd: string): Concept[] {
+  // JSON block first (new structured output)
+  const jsonMatch = strategyMd.match(/```json\s*\n(\[[\s\S]*?\])\s*\n\s*```/);
+  if (jsonMatch) {
+    try {
+      const parsed: unknown = JSON.parse(jsonMatch[1]);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const concepts: Concept[] = (parsed as unknown[])
+          .filter((c): c is Record<string, unknown> => c !== null && typeof c === 'object' && !Array.isArray(c))
+          .map((c) => ({
+            index: typeof c.index === 'number' ? c.index : 0,
+            name: typeof c.name === 'string' ? c.name : '',
+            angle: typeof c.angle === 'string' ? c.angle : '',
+            titles: Array.isArray(c.titles) ? (c.titles as unknown[]).filter((t): t is string => typeof t === 'string') : [],
+          }))
+          .filter((c) => c.index > 0 && c.name.length > 0);
+        if (concepts.length > 0) return concepts;
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Fallback: existing regex (handles legacy strategy.md files)
   const concepts: Concept[] = [];
   const conceptBlocks = strategyMd.split(/##\s+\[컨셉\s*(\d+)\]\s+(.+)/g);
 
@@ -228,6 +249,25 @@ export function deleteProject(id: string): boolean {
 }
 
 export function parseReviewScore(reviewMd: string): { score: number; verdict: string } {
+  // JSON block first (new structured output)
+  const jsonMatch = reviewMd.match(/```json\s*\n([\s\S]*?)\n\s*```/);
+  if (jsonMatch) {
+    try {
+      const parsed: unknown = JSON.parse(jsonMatch[1]);
+      if (
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        typeof (parsed as Record<string, unknown>).score === 'number' &&
+        typeof (parsed as Record<string, unknown>).verdict === 'string'
+      ) {
+        const p = parsed as { score: number; verdict: string };
+        return { score: p.score, verdict: p.verdict };
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Fallback: existing regex (handles legacy script-review.md files)
   const scoreMatch = reviewMd.match(/\*\*점수\*\*:\s*(\d+)\/100/);
   const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
 

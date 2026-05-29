@@ -72,9 +72,15 @@ export async function runResearcher(projectId: string, topic: string): Promise<s
   const queries = [topic, `${topic} 역사 배경`, `${topic} 진실 비밀`, `${topic} 알려지지 않은 사실`];
   let searchContext = '';
 
-  for (const query of queries) {
-    emit(projectId, { type: 'log', message: `🔍 검색: "${query}"` });
-    const result = await tavilySearch(query);
+  const searchResults = await Promise.all(
+    queries.map(async (query) => {
+      emit(projectId, { type: 'log', message: `🔍 검색: "${query}"` });
+      const result = await tavilySearch(query);
+      return { query, result };
+    })
+  );
+
+  for (const { query, result } of searchResults) {
     if (result) {
       searchContext += `\n\n### 검색어: ${query}\n${result}`;
     }
@@ -84,9 +90,9 @@ export async function runResearcher(projectId: string, topic: string): Promise<s
     ? `\n\n## 사전 수집 자료 (웹 검색 결과)\n${searchContext}\n`
     : '';
 
-  const prompt = `${SYSTEM}\n\n---\n\n토픽: "${topic}"${searchSection}\n\n위 형식에 맞게 리서치 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
+  const prompt = `토픽: "${topic}"${searchSection}\n\n위 형식에 맞게 리서치 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-  const researchContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const researchContent = await runClaude(prompt, { model: MODEL.SONNET, projectId, systemPrompt: SYSTEM });
 
   if (!researchContent) {
     throw new Error('리서처가 research.md 내용을 생성하지 못했습니다.');

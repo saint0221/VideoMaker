@@ -170,26 +170,11 @@ export async function runScriptwriter(
   const langRules = LANGUAGE_RULES[language];
   const narrFieldLabel = language === 'en' ? '**Narration**:' : '**나레이션**:';
 
-  const prompt = `${SYSTEM}
+  const effectiveSystem = `${SYSTEM}\n\n## 언어 설정\n${langRules}\n\n출력 형식에서 나레이션 필드: ${narrFieldLabel}`;
+  const cachedPrefix = `토픽: "${topic}"\n\n## 기획서 (brief.md)\n${briefMd}\n\n## 리서치 보고서 (research.md)\n${researchMd}\n${youtubeSection}`;
+  const prompt = `위 형식에 맞게 대본 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
-## 언어 설정
-${langRules}
-
-출력 형식에서 나레이션 필드: ${narrFieldLabel}
-
----
-
-토픽: "${topic}"
-
-## 기획서 (brief.md)
-${briefMd}
-
-## 리서치 보고서 (research.md)
-${researchMd}
-${youtubeSection}
-위 형식에 맞게 대본 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
-
-  const scriptContent = await runClaude(prompt, { model: MODEL.OPUS, projectId });
+  const scriptContent = await runClaude(prompt, { model: MODEL.OPUS, projectId, systemPrompt: effectiveSystem, cachedPrefix });
 
   if (!scriptContent) {
     throw new Error('대본 작가가 script-final.md 내용을 생성하지 못했습니다.');

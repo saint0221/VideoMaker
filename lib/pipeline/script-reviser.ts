@@ -145,8 +145,8 @@ export async function runScriptReviser(
     : '당신은 한국어 유튜브 대본 편집 전문가입니다. 나레이션은 반드시 한국어로 작성합니다.';
 
   // Step 2: LLM applies recommended fixes on top of the mechanically-fixed base
-  const prompt = `${languageInstruction}
-검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
+  const cachedPrefix = factCheckMd ? `## 팩트 체크 결과 (❌ 사실 오류는 반드시 수정)\n${factCheckMd}` : undefined;
+  const prompt = `검수 리포트의 수정 사항을 원본 대본에 반영하여 개선된 최종 대본만 작성합니다.
 
 ---
 
@@ -157,7 +157,7 @@ ${baseScript}
 
 ## 검수 리포트 (전체)
 ${reviewMd}
-${factCheckSection}
+
 ---
 
 ## 수정 원칙
@@ -183,7 +183,7 @@ ${mandatoryInstruction}
 ===대본 끝===
 `;
 
-  const revised = await runClaude(prompt, { model: MODEL.OPUS, projectId });
+  const revised = await runClaude(prompt, { model: MODEL.OPUS, projectId, systemPrompt: languageInstruction, cachedPrefix });
 
   if (!revised) {
     throw new Error('대본 수정 내용을 생성하지 못했습니다.');

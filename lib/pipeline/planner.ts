@@ -73,21 +73,10 @@ export async function runPlanner(
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[3단계] 기획서 작성 중...' });
 
-  const prompt = `${SYSTEM}
+  const cachedPrefix = `토픽: "${topic}"\n\n## 선택된 컨셉 (concept.md)\n${conceptMd}\n\n## 리서치 보고서 (research.md)\n${researchMd}`;
+  const prompt = `위 형식에 맞게 기획서 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
----
-
-토픽: "${topic}"
-
-## 선택된 컨셉 (concept.md)
-${conceptMd}
-
-## 리서치 보고서 (research.md)
-${researchMd}
-
-위 형식에 맞게 기획서 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
-
-  const briefContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const briefContent = await runClaude(prompt, { model: MODEL.SONNET, projectId, systemPrompt: SYSTEM, cachedPrefix });
 
   if (!briefContent) {
     throw new Error('기획자가 brief.md 내용을 생성하지 못했습니다.');

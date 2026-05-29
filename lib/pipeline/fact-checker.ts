@@ -2,6 +2,9 @@ import { emit } from '../events';
 import { writeFile } from '../project';
 import { runClaude, MODEL } from './claude-runner';
 
+const SYSTEM = `당신은 유튜브 대본 팩트 체커입니다.
+대본의 사실 주장을 리서치 자료와 대조하여 정확성을 검증합니다.`;
+
 export async function runFactChecker(
   projectId: string,
   topic: string,
@@ -10,17 +13,8 @@ export async function runFactChecker(
 ): Promise<string> {
   emit(projectId, { type: 'log', message: '[4.5단계] 팩트 체크 중...' });
 
-  const prompt = `당신은 유튜브 대본 팩트 체커입니다.
-대본의 사실 주장을 리서치 자료와 대조하여 정확성을 검증합니다.
-
----
-
-## 리서치 자료 (research.md)
-${researchMd}
-
----
-
-## 대본 (script-final.md)
+  const cachedPrefix = `## 리서치 자료 (research.md)\n${researchMd}`;
+  const prompt = `## 대본 (script-final.md)
 ${scriptMd}
 
 ---
@@ -52,7 +46,7 @@ ${scriptMd}
 - 확인: N개 / 불확실: N개 / 오류: N개
 - 종합 의견: ...`;
 
-  const factCheckContent = await runClaude(prompt, { model: MODEL.SONNET, projectId });
+  const factCheckContent = await runClaude(prompt, { model: MODEL.SONNET, projectId, systemPrompt: SYSTEM, cachedPrefix });
 
   if (!factCheckContent) {
     throw new Error('팩트 체커가 결과를 생성하지 못했습니다.');

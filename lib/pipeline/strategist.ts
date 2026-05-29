@@ -63,7 +63,12 @@ HOOK(충격) → SETUP(공감) → RISING(긴장) → CLIMAX(반전) → RESOLUT
 규칙:
 - research.md의 데이터를 충분히 활용하여 차별화된 컨셉 제안
 - 각 컨셉의 훅 & 인트로는 실제 나레이션 텍스트로 작성 (30초 분량)
-- 한국어로 작성`;
+- 한국어로 작성
+
+전략 본문이 끝난 뒤, 반드시 아래 JSON 코드블록을 마지막 줄로 출력하라:
+\`\`\`json
+[{"index": 1, "name": "컨셉명", "angle": "접근 각도 한 줄", "titles": ["제목A", "제목B", "제목C"]}, ...]
+\`\`\``;
 
 export async function runStrategist(
   projectId: string,
@@ -77,19 +82,10 @@ export async function runStrategist(
     ? `\n아래는 유튜브 레퍼런스 분석입니다:\n\n${youtubeAnalysisMd}\n`
     : '';
 
-  const prompt = `${SYSTEM}
+  const cachedPrefix = `토픽: "${topic}"\n\n아래는 리서치 보고서입니다:\n\n${researchMd}\n${youtubeSection}`;
+  const prompt = `위 형식에 맞게 전략 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
 
----
-
-토픽: "${topic}"
-
-아래는 리서치 보고서입니다:
-
-${researchMd}
-${youtubeSection}
-위 형식에 맞게 전략 내용만 출력해주세요. 파일 저장은 하지 마세요.`;
-
-  const strategyContent = await runClaude(prompt, { model: MODEL.OPUS, projectId });
+  const strategyContent = await runClaude(prompt, { model: MODEL.OPUS, projectId, systemPrompt: SYSTEM, cachedPrefix });
 
   if (!strategyContent) {
     throw new Error('전략가가 strategy.md 내용을 생성하지 못했습니다.');
