@@ -103,11 +103,16 @@ async function runCLI(prompt: string, timeoutMs: number, model: string, projectI
     const args = ['--print', '--dangerously-skip-permissions', '--model', model];
     if (systemPrompt) args.push('--system-prompt', systemPrompt);
 
+    // On Windows, stdin piping causes exit 255 (CLI treats piped input as interactive session).
+    // Pass prompt as positional arg instead. On macOS/Linux keep the original stdin approach.
+    const isWindows = process.platform === 'win32';
+    if (isWindows) args.push(prompt);
+
     // CLAUDE_BIN is resolved to the actual .exe on Windows (not the .cmd wrapper),
     // so we spawn directly — no cmd.exe, no 8191-char command line limit.
     const child = spawn(CLAUDE_BIN, args, {
       env,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: isWindows ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
     });
 
     let resolved = false;
@@ -120,14 +125,16 @@ async function runCLI(prompt: string, timeoutMs: number, model: string, projectI
       }
     }, timeoutMs);
 
-    child.stdin.write(prompt, 'utf8');
-    child.stdin.end();
+    if (!isWindows) {
+      child.stdin!.write(prompt, 'utf8');
+      child.stdin!.end();
+    }
 
     let stdout = '';
     let stderr = '';
 
-    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
-    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+    child.stdout!.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+    child.stderr!.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
 
     child.on('close', (code: number | null) => {
       clearTimeout(timer);

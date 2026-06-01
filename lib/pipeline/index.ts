@@ -14,6 +14,8 @@ import { runVideoGenerator, calcVideoCost } from './video-generator';
 import { runCapcutEditor } from './capcut-editor';
 import { emit } from '../events';
 import type { ImageModel } from '../types';
+import fs from 'fs';
+import path from 'path';
 import {
   loadProject,
   updateStatus,
@@ -23,6 +25,7 @@ import {
   parseConcepts,
   parseReviewScore,
   writeCostReport,
+  projectDir,
 } from '../project';
 
 function injectTriggerWord(promptsMd: string, triggerWord: string): string {
@@ -259,16 +262,23 @@ export async function runPostScript(projectId: string) {
 
     // Stage 6 (TTS) and Stage 7 (Scene Designer) are independent — run in parallel.
     // Stage 8 (Image Prompter) depends on Scene Designer output, so it follows in the scene branch.
-    updateStatus(projectId, 'running:tts');
-    emit(projectId, { type: 'status', status: 'running:tts' });
+    const audioDir = path.join(projectDir(projectId), 'audio');
+    const ttsAlreadyDone = fs.existsSync(audioDir) && fs.readdirSync(audioDir).some(f => f.endsWith('.mp3'));
+
+    if (!ttsAlreadyDone) {
+      updateStatus(projectId, 'running:tts');
+      emit(projectId, { type: 'status', status: 'running:tts' });
+    }
 
     const [, promptsMd] = await Promise.all([
-      // Branch A: TTS only
-      (async () => {
-        await runTTS(projectId, scriptMd);
-        updateStatus(projectId, 'done:tts');
-        emit(projectId, { type: 'status', status: 'done:tts' });
-      })(),
+      // Branch A: TTS only (skip if audio files already exist)
+      ttsAlreadyDone
+        ? Promise.resolve()
+        : (async () => {
+          await runTTS(projectId, scriptMd);
+          updateStatus(projectId, 'done:tts');
+          emit(projectId, { type: 'status', status: 'done:tts' });
+        })(),
 
       // Branch B: Scene Designer → Image Prompter
       (async () => {
