@@ -8,6 +8,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "📦 최신 코드 가져오는 중..."
+git checkout -- package-lock.json 2>/dev/null || true
 git pull origin main
 
 echo "📦 의존성 설치 중..."
