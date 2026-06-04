@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_DIR="/Users/hongss/VideoMaker"
+# 스크립트가 있는 디렉토리를 앱 루트로 사용 (경로 하드코딩 불필요)
+APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=3000
 LOG="/tmp/youtube-pd-server.log"
 PID_FILE="/tmp/youtube-pd.pid"
@@ -16,10 +17,19 @@ if ! command -v node > /dev/null 2>&1; then
     exit 1
 fi
 
+# 브라우저 열기 (macOS / Linux 크로스플랫폼)
+open_browser() {
+    if command -v open > /dev/null 2>&1; then
+        open "http://localhost:$PORT"       # macOS
+    elif command -v xdg-open > /dev/null 2>&1; then
+        xdg-open "http://localhost:$PORT"   # Linux
+    fi
+}
+
 # Already running?
 if curl -s "http://localhost:$PORT" > /dev/null 2>&1; then
     echo "✅ 서버가 이미 실행 중입니다 → http://localhost:$PORT"
-    open "http://localhost:$PORT"
+    open_browser
     exit 0
 fi
 
@@ -49,7 +59,7 @@ echo $! > "$PID_FILE"
 for i in {1..30}; do
     if curl -s "http://localhost:$PORT" > /dev/null 2>&1; then
         echo "✅ 서버 준비 완료 (${i}초)"
-        open "http://localhost:$PORT"
+        open_browser
         echo "📋 로그: tail -f $LOG"
         exit 0
     fi
