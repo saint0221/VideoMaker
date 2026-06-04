@@ -978,6 +978,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>0.1 – 2.0</span>
             </div>
           )}
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl' || imageModel === 'fal-ai/flux-2/lora') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, margin: '0 auto 16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
@@ -1002,6 +1003,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               />
             </div>
           </div>
+          )}
           <button className="btn btn-primary" onClick={startPipeline}>
             🚀 파이프라인 시작
           </button>
@@ -1293,6 +1295,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               </p>
             </div>
           )}
+          {(imageModel === 'fal-ai/flux-lora' || imageModel === 'fal-ai/fast-sdxl' || imageModel === 'fal-ai/flux-2/lora') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0, minWidth: 68 }}>트리거 워드</span>
@@ -1317,6 +1320,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               />
             </div>
           </div>
+          )}
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-success" onClick={handleImagesConfirm} disabled={generatedImages.length === 0 || confirmingImages || regenerating || regeneratingPrompts}>
               {confirmingImages ? '⏳ 영상 생성 준비 중…' : '✓ 이미지 확인 완료 — 영상 생성 시작'}
