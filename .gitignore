@@ -44,5 +44,9 @@ next-env.d.ts
 # project data
 /data
 
-# claude code local settings
-.claude/
+# claude code local settings (.claude/* 로 해야 하위 예외가 작동)
+.claude/*
+!.claude/agents
+!.claude/agents/**
+!.claude/skills
+!.claude/skills/**
