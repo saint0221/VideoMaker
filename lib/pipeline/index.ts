@@ -274,11 +274,7 @@ export async function runPostScript(projectId: string) {
       // Branch A: TTS only (skip if audio files already exist)
       ttsAlreadyDone
         ? Promise.resolve()
-        : (async () => {
-          await runTTS(projectId, scriptMd);
-          updateStatus(projectId, 'done:tts');
-          emit(projectId, { type: 'status', status: 'done:tts' });
-        })(),
+        : runTTS(projectId, scriptMd),
 
       // Branch B: Scene Designer → Image Prompter
       (async () => {
